@@ -1,0 +1,45 @@
+{
+  "name": "kracked-skills-marketplace",
+  "version": "1.0.0",
+  "description": "Community skill marketplace for Kracked_Skills Agent",
+  "registry": {
+    "url": "https://github.com/MoonWIRaja/Kracked_Skills_Agent",
+    "skills_path": "templates/.kracked/skills/"
+  },
+  "categories": [
+    {
+      "id": "core",
+      "name": "Core Skills",
+      "description": "Kemahiran teras yang disertakan bersama KD",
+      "skills": [
+        { "id": "memories", "name": "Memories", "version": "1.0.0", "builtin": true },
+        { "id": "commit", "name": "Commit Message", "version": "1.0.0", "builtin": true },
+        { "id": "webapp", "name": "Webapp Development", "version": "1.0.0", "builtin": true },
+        { "id": "api-design", "name": "API Design", "version": "1.0.0", "builtin": true },
+        { "id": "security", "name": "Security", "version": "1.0.0", "builtin": true },
+        { "id": "database", "name": "Database", "version": "1.0.0", "builtin": true },
+        { "id": "testing", "name": "Testing", "version": "1.0.0", "builtin": true },
+        { "id": "mobile", "name": "Mobile Development", "version": "1.0.0", "builtin": true },
+        { "id": "devops", "name": "DevOps", "version": "1.0.0", "builtin": true },
+        { "id": "game-dev", "name": "Game Dev", "version": "1.0.0", "builtin": true },
+        { "id": "creative", "name": "Creative Intelligence", "version": "1.0.0", "builtin": true }
+      ]
+    },
+    {
+      "id": "community",
+      "name": "Community Skills",
+      "description": "Kemahiran sumbangan komuniti",
+      "skills": []
+    }
+  ],
+  "skill_schema": {
+    "required_files": ["SKILL.md"],
+    "optional_files": ["examples/", "scripts/", "resources/"],
+    "frontmatter": {
+      "required": ["name", "description"],
+      "optional": ["version", "author", "tags", "dependencies"]
+    }
+  },
+  "install_command": "npx kracked-skills-agent add-skill <skill-id>",
+  "publish_command": "npx kracked-skills-agent publish-skill <path>"
+}

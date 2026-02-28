@@ -1,0 +1,51 @@
+{
+  "name": "kracked-skills-agent",
+  "version": "1.0.0",
+  "description": "KD — AI Multi-Agent System for Software Development. 9 specialized agents, 8 structured stages, 40+ commands, XP leveling, and multi-IDE adapter support.",
+  "author": "KRACKEDDEVS",
+  "license": "MIT",
+  "homepage": "https://github.com/MoonWIRaja/Kracked_Skills_Agent",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MoonWIRaja/Kracked_Skills_Agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MoonWIRaja/Kracked_Skills_Agent/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "multi-agent",
+    "skills",
+    "development",
+    "agile",
+    "workflow",
+    "kracked",
+    "krackeddevs"
+  ],
+  "bin": {
+    "kracked-skills-agent": "bin/cli.js"
+  },
+  "main": "bin/cli.js",
+  "scripts": {
+    "build": "cd frontend && npm run build",
+    "start-kds": "node start-kds.js",
+    "start-kds:dev": "node start-kds.js dev",
+    "test": "node --test tests/",
+    "test:installer": "node --test tests/installer.test.js",
+    "test:adapters": "node --test tests/adapters.test.js",
+    "test:templates": "node --test tests/templates.test.js",
+    "test:stats": "node --test tests/stats.test.js",
+    "test:cli": "node --test tests/cli.test.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "templates/",
+    "README.md",
+    "LICENSE"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "project": {
+    "name": "KD-Project",
+    "created_at": ""
+  },
+  "language": {
+    "default": "EN",
+    "communication": "English",
+    "document_output": "English"
+  },
+  "ides": ["codex", "cursor", "antigravity"],
+  "output_folder": "{project-root}/KD_output",
+  "memory": {
+    "local_path": "./.kracked/",
+    "global_path": "~/.kracked/global/",
+    "sync_on_complete": true
+  }
+}

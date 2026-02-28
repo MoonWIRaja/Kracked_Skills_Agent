@@ -457,21 +457,25 @@ Required fields:
 
   if (!fs.existsSync(emitterFile)) {
     const emitter = `#!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
 function parseArgs(argv){const out={};for(let i=0;i<argv.length;i++){const t=argv[i];if(!t.startsWith('--')) continue;const k=t.slice(2);const v=argv[i+1]&&!argv[i+1].startsWith('--')?argv[++i]:'true';out[k]=v;}return out;}
 function fail(msg){process.stderr.write('[KD] '+msg+'\\n');process.exit(1);}
-const args=parseArgs(process.argv.slice(2));
-for (const k of ['source','agent-id','agent-name','role','action']) { if(!args[k]) fail('Missing required argument --'+k); }
-const runtimeDir = fs.existsSync(path.join(process.cwd(), '.kracked', 'runtime')) ? path.join(process.cwd(), '.kracked', 'runtime') : __dirname;
-const eventsPath = path.join(runtimeDir, 'events.jsonl');
-const event = { ts:new Date().toISOString(), agent_id:args['agent-id'], agent_name:args['agent-name'], role:args.role, action:args.action, source:args.source };
-if (args['target-agent-id']) event.target_agent_id=args['target-agent-id'];
-if (args.task) event.task=args.task;
-if (args.message) event.message=args.message;
-fs.mkdirSync(runtimeDir, { recursive: true });
-fs.appendFileSync(eventsPath, JSON.stringify(event)+'\\n', 'utf8');
-process.stdout.write('[KD] Event appended\\n');
+(async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const args=parseArgs(process.argv.slice(2));
+  for (const k of ['source','agent-id','agent-name','role','action']) { if(!args[k]) fail('Missing required argument --'+k); }
+  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
+  const scriptDir = path.dirname(process.argv[1] || process.cwd());
+  const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
+  const eventsPath = path.join(runtimeDir, 'events.jsonl');
+  const event = { ts:new Date().toISOString(), agent_id:args['agent-id'], agent_name:args['agent-name'], role:args.role, action:args.action, source:args.source };
+  if (args['target-agent-id']) event.target_agent_id=args['target-agent-id'];
+  if (args.task) event.task=args.task;
+  if (args.message) event.message=args.message;
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  fs.appendFileSync(eventsPath, JSON.stringify(event)+'\\n', 'utf8');
+  process.stdout.write('[KD] Event appended\\n');
+})().catch((err)=>fail(err&&err.message?err.message:String(err)));
 `;
     fs.writeFileSync(emitterFile, emitter, 'utf8');
   }
@@ -482,16 +486,20 @@ process.stdout.write('[KD] Event appended\\n');
       fs.copyFileSync(bundledTui, tuiFile);
     } else {
       const fallbackTui = `#!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const runtimeDir = fs.existsSync(path.join(process.cwd(), '.kracked', 'runtime')) ? path.join(process.cwd(), '.kracked', 'runtime') : __dirname;
-const eventsPath = path.join(runtimeDir, 'events.jsonl');
-fs.mkdirSync(runtimeDir, { recursive: true });
-if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
-const data = fs.readFileSync(eventsPath, 'utf8').split(/\\r?\\n/).filter(Boolean).slice(-20);
-console.log('[KD] pixel-tui fallback');
-if (data.length === 0) console.log('No events yet.');
-for (const line of data) console.log(line);
+(async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
+  const scriptDir = path.dirname(process.argv[1] || process.cwd());
+  const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
+  const eventsPath = path.join(runtimeDir, 'events.jsonl');
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
+  const data = fs.readFileSync(eventsPath, 'utf8').split(/\\r?\\n/).filter(Boolean).slice(-20);
+  console.log('[KD] pixel-tui fallback');
+  if (data.length === 0) console.log('No events yet.');
+  for (const line of data) console.log(line);
+})().catch((err)=>{ console.error('[KD] pixel-tui fallback error: '+(err&&err.message?err.message:String(err))); process.exit(1); });
 `;
       fs.writeFileSync(tuiFile, fallbackTui, 'utf8');
     }
@@ -503,28 +511,32 @@ for (const line of data) console.log(line);
       fs.copyFileSync(bundledWeb, webFile);
     } else {
       const fallbackWeb = `#!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
-const runtimeDir = fs.existsSync(path.join(process.cwd(), '.kracked', 'runtime')) ? path.join(process.cwd(), '.kracked', 'runtime') : __dirname;
-const eventsPath = path.join(runtimeDir, 'events.jsonl');
-fs.mkdirSync(runtimeDir, { recursive: true });
-if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
-const args = process.argv.slice(2);
-const portIndex = args.indexOf('--port');
-const port = Number.parseInt(portIndex >= 0 ? args[portIndex + 1] : '', 10) || 4892;
-http.createServer((req, res) => {
-  if ((req.url || '/') === '/api/state') {
-    const lines = fs.readFileSync(eventsPath, 'utf8').split(/\\r?\\n/).filter(Boolean).slice(-60);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ total_events: lines.length, recent: lines }));
-    return;
-  }
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  res.end('<h1>KD Pixel Web Fallback</h1><p>Open <code>/api/state</code> for data.</p>');
-}).listen(port, () => {
-  process.stdout.write('[KD] Pixel web fallback running on http://localhost:' + port + '\\n');
-});
+(async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const http = await import('node:http');
+  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
+  const scriptDir = path.dirname(process.argv[1] || process.cwd());
+  const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
+  const eventsPath = path.join(runtimeDir, 'events.jsonl');
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
+  const args = process.argv.slice(2);
+  const portIndex = args.indexOf('--port');
+  const port = Number.parseInt(portIndex >= 0 ? args[portIndex + 1] : '', 10) || 4892;
+  http.createServer((req, res) => {
+    if ((req.url || '/') === '/api/state') {
+      const lines = fs.readFileSync(eventsPath, 'utf8').split(/\\r?\\n/).filter(Boolean).slice(-60);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ total_events: lines.length, recent: lines }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end('<h1>KD Pixel Web Fallback</h1><p>Open <code>/api/state</code> for data.</p>');
+  }).listen(port, () => {
+    process.stdout.write('[KD] Pixel web fallback running on http://localhost:' + port + '\\n');
+  });
+})().catch((err)=>{ console.error('[KD] pixel-web fallback error: '+(err&&err.message?err.message:String(err))); process.exit(1); });
 `;
       fs.writeFileSync(webFile, fallbackWeb, 'utf8');
     }

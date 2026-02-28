@@ -4,6 +4,12 @@ Native IDE panel that reads KD event stream from:
 
 - `.kracked/runtime/events.jsonl`
 
+This panel runs an animated pixel office scene:
+
+- each active agent appears as a character
+- characters walk between desk/reading/waiting zones
+- state reacts to actions from KD event stream
+
 ## Install Extension (Local)
 
 ```bash

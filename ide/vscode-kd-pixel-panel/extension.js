@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 
-const MAX_EVENTS = 200;
+const MAX_EVENTS = 260;
 const VIEW_ID = 'kdPixel.panelView';
 let provider = null;
 
@@ -36,9 +36,7 @@ class KDPanelViewProvider {
 
   resolveWebviewView(webviewView) {
     this.view = webviewView;
-    this.view.webview.options = {
-      enableScripts: true,
-    };
+    this.view.webview.options = { enableScripts: true };
     this.view.webview.html = this.getHtml();
 
     this.view.onDidDispose(() => {
@@ -104,7 +102,9 @@ class KDPanelViewProvider {
   }
 
   getEventsPath(root) {
-    const configured = vscode.workspace.getConfiguration('kdPixel').get('eventsPath', '.kracked/runtime/events.jsonl');
+    const configured = vscode.workspace
+      .getConfiguration('kdPixel')
+      .get('eventsPath', '.kracked/runtime/events.jsonl');
     if (!configured) return root ? path.join(root, '.kracked', 'runtime', 'events.jsonl') : null;
     if (path.isAbsolute(configured)) return configured;
     return root ? path.join(root, configured) : configured;
@@ -118,192 +118,469 @@ class KDPanelViewProvider {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root {
-      --bg: #08110b;
-      --panel: #102118;
-      --line: #2f553c;
-      --text: #d6f7db;
-      --muted: #89b691;
-      --good: #7ef29a;
-      --warn: #ffe082;
-      --danger: #ff8f8f;
-      --accent: #6bc48a;
+      --bg: #090f0b;
+      --panel: #101a13;
+      --line: #2a4533;
+      --line-soft: #1a2b21;
+      --txt: #d3f5dd;
+      --muted: #7ea98a;
+      --ok: #89ffb2;
+      --warn: #ffd67a;
+      --danger: #ff9090;
+      --chip: #133022;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      color: var(--text);
+      font-family: "Consolas", "JetBrains Mono", monospace;
+      color: var(--txt);
       background:
-        linear-gradient(rgba(76,140,95,0.09) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(76,140,95,0.08) 1px, transparent 1px),
+        linear-gradient(rgba(71, 121, 84, .1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(71, 121, 84, .08) 1px, transparent 1px),
         var(--bg);
       background-size: 24px 24px, 24px 24px, auto;
     }
-    .wrap { padding: 12px; display: grid; gap: 12px; }
-    .header, .panel {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: rgba(13, 30, 21, 0.92);
-      box-shadow: 0 0 0 1px rgba(88,156,106,0.1) inset;
+    .wrap {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 8px;
+      min-height: 100vh;
+      padding: 8px;
     }
-    .header { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .title { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
-    .meta { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    button {
+    .head {
       border: 1px solid var(--line);
-      background: #153321;
-      color: var(--text);
-      border-radius: 7px;
-      padding: 6px 10px;
-      cursor: pointer;
+      background: linear-gradient(180deg, #102116, #0d1812);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: grid;
+      gap: 5px;
+    }
+    .brand {
       font-size: 12px;
-    }
-    .grid { display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px; }
-    .panel h3 {
-      margin: 0;
-      padding: 9px 10px;
-      font-size: 11px;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: var(--good);
-      border-bottom: 1px solid var(--line);
+      color: var(--ok);
+      font-weight: 700;
     }
-    .content { padding: 8px; max-height: 62vh; overflow: auto; }
-    .agent {
-      border: 1px solid #264734;
-      background: #0f1f15;
-      border-radius: 8px;
-      padding: 8px;
-      margin-bottom: 8px;
-    }
-    .agent-top { display: flex; justify-content: space-between; gap: 8px; }
-    .agent-name { font-size: 12px; font-weight: 700; color: var(--text); }
-    .agent-role { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .badge { font-size: 10px; text-transform: uppercase; color: #001b0c; background: var(--good); padding: 2px 6px; border-radius: 999px; }
-    .action {
-      margin-top: 6px;
+    .meta {
       font-size: 11px;
-      color: var(--accent);
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: #133022;
+      color: var(--txt);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .pill {
+      border: 1px solid var(--line);
+      background: #0f1e16;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .stage {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #0d1711, #09100c);
+      position: relative;
+      min-height: 340px;
+      overflow: hidden;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+    }
+    .legend {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0e1913;
+      padding: 7px 9px;
+      font-size: 10px;
+      color: var(--muted);
       display: flex;
       justify-content: space-between;
       gap: 8px;
+      flex-wrap: wrap;
     }
-    .event {
-      border-bottom: 1px dashed #2a4c36;
-      padding: 7px 0;
-      font-size: 11px;
-    }
-    .event:last-child { border-bottom: 0; }
-    .event-head { color: var(--muted); margin-bottom: 3px; }
-    .event-body { color: var(--text); }
-    .empty {
-      color: var(--warn);
-      font-size: 12px;
-      white-space: pre-line;
-      line-height: 1.45;
-    }
-    .status {
-      padding: 0 10px 10px 10px;
-      font-size: 11px;
-      color: var(--muted);
-    }
+    .legend strong { color: var(--ok); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="header">
-      <div>
-        <div class="title">KD Pixel Observer (Native Panel)</div>
-        <div class="meta" id="meta">Waiting for workspace...</div>
+    <header class="head">
+      <div class="brand">KD PIXEL OBSERVER // Office Mode</div>
+      <div class="meta" id="meta">Waiting for KD workspace...</div>
+      <div class="toolbar">
+        <button id="refreshBtn">Refresh</button>
+        <span class="pill" id="kAgents">agents: 0</span>
+        <span class="pill" id="kEvents">events: 0</span>
+        <span class="pill" id="kUpdated">updated: -</span>
       </div>
-      <button id="refreshBtn">Refresh</button>
-    </div>
+    </header>
 
-    <div class="grid">
-      <section class="panel">
-        <h3>Agent Swarm</h3>
-        <div class="content" id="agents"></div>
-      </section>
-      <section class="panel">
-        <h3>Recent Events</h3>
-        <div class="content" id="events"></div>
-      </section>
-    </div>
-    <div class="status" id="status">No updates yet.</div>
+    <main class="stage">
+      <canvas id="office"></canvas>
+    </main>
+
+    <footer class="legend">
+      <span><strong>walking</strong>: moving to zone/desk</span>
+      <span><strong>typing</strong>: seated at desk</span>
+      <span><strong>reading</strong>: moves to reading zone</span>
+      <span><strong>waiting</strong>: bubble indicator</span>
+    </footer>
   </div>
 
   <script>
     const vscode = acquireVsCodeApi();
-    const agentsEl = document.getElementById('agents');
-    const eventsEl = document.getElementById('events');
+    const canvas = document.getElementById('office');
+    const ctx = canvas.getContext('2d');
     const metaEl = document.getElementById('meta');
-    const statusEl = document.getElementById('status');
+    const kAgentsEl = document.getElementById('kAgents');
+    const kEventsEl = document.getElementById('kEvents');
+    const kUpdatedEl = document.getElementById('kUpdated');
     const refreshBtn = document.getElementById('refreshBtn');
 
-    refreshBtn.addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
+    const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const palette = ['#87ffb2', '#7fc7ff', '#ffb37f', '#d69cff', '#f1ff93', '#ff8ca7', '#9bffd8', '#ffd17f'];
+    const office = {
+      w: 960,
+      h: 540,
+      desks: [],
+      reading: { x: 840, y: 120 },
+      waiting: { x: 840, y: 430 },
+    };
+    const agents = new Map();
+    const deskByAgent = new Map();
+    let lastTick = performance.now();
+    let lastStateTs = '-';
+    let state = { agents: [], events: [] };
 
-    function escapeHtml(value) {
-      return String(value || '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+    function hashString(input) {
+      const s = String(input || '');
+      let hash = 0;
+      for (let i = 0; i < s.length; i++) {
+        hash = ((hash << 5) - hash) + s.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash);
     }
 
-    function renderAgents(agents) {
-      if (!agents || agents.length === 0) {
-        agentsEl.innerHTML = '<div class="empty">No agent events yet.</div>';
-        return;
+    function timeLabel(ts) {
+      if (!ts) return '-';
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return '-';
+      return d.toISOString().slice(11, 19);
+    }
+
+    function actionToMode(actionRaw) {
+      const action = String(actionRaw || '').toLowerCase();
+      if (action.includes('type') || action.includes('write') || action.includes('edit')) return 'typing';
+      if (action.includes('read') || action.includes('search') || action.includes('analyze')) return 'reading';
+      if (action.includes('wait') || action.includes('idle')) return 'waiting';
+      if (action.includes('run') || action.includes('exec') || action.includes('cmd')) return 'running';
+      return 'working';
+    }
+
+    function ensureLayout() {
+      office.desks = [];
+      const cols = 4;
+      const rows = 3;
+      const sx = 120;
+      const sy = 120;
+      const gx = 170;
+      const gy = 125;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          office.desks.push({ x: sx + c * gx, y: sy + r * gy });
+        }
+      }
+    }
+
+    function chooseDesk(agentId) {
+      if (deskByAgent.has(agentId)) return deskByAgent.get(agentId);
+      const idx = hashString(agentId) % office.desks.length;
+      deskByAgent.set(agentId, idx);
+      return idx;
+    }
+
+    function targetByMode(agentId, mode) {
+      if (mode === 'reading') return { ...office.reading };
+      if (mode === 'waiting') return { ...office.waiting };
+      const desk = office.desks[chooseDesk(agentId)] || office.desks[0];
+      return { x: desk.x, y: desk.y + 6 };
+    }
+
+    function randomNear(point, radius) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * radius;
+      return {
+        x: point.x + Math.cos(angle) * dist,
+        y: point.y + Math.sin(angle) * dist,
+      };
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(380, Math.floor(rect.width));
+      const h = Math.max(260, Math.floor(rect.height));
+      canvas.width = Math.floor(w * DPR);
+      canvas.height = Math.floor(h * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      office.w = w;
+      office.h = h;
+    }
+
+    function upsertFromState(payload) {
+      state = payload || { agents: [], events: [] };
+      const seen = new Set();
+
+      for (const item of (state.agents || [])) {
+        const id = String(item.agent_id || item.agent_name || 'unknown');
+        seen.add(id);
+
+        const mode = actionToMode(item.action);
+        const deskIndex = chooseDesk(id);
+        const desk = office.desks[deskIndex] || { x: 90, y: 90 };
+        const target = targetByMode(id, mode);
+        let agent = agents.get(id);
+
+        if (!agent) {
+          const spawn = randomNear(desk, 80);
+          agent = {
+            id,
+            name: item.agent_name || id,
+            role: item.role || '-',
+            mode,
+            action: item.action || '-',
+            source: item.source || '-',
+            color: palette[hashString(id) % palette.length],
+            x: spawn.x,
+            y: spawn.y,
+            tx: target.x,
+            ty: target.y,
+            step: 0,
+            bubbleUntil: 0,
+            wanderAt: performance.now() + 2000 + (hashString(id) % 2000),
+          };
+          agents.set(id, agent);
+        } else {
+          agent.name = item.agent_name || agent.name;
+          agent.role = item.role || agent.role;
+          agent.source = item.source || agent.source;
+          agent.action = item.action || agent.action;
+          agent.mode = mode;
+          agent.tx = target.x;
+          agent.ty = target.y;
+        }
+
+        if (mode === 'waiting') {
+          agent.bubbleUntil = performance.now() + 2200;
+        }
       }
 
-      agentsEl.innerHTML = agents.map((agent) => {
-        const action = escapeHtml(agent.action || 'idle');
-        const time = escapeHtml(agent.ts || '-');
-        return \`
-          <div class="agent">
-            <div class="agent-top">
-              <div>
-                <div class="agent-name">\${escapeHtml(agent.agent_name)}</div>
-                <div class="agent-role">\${escapeHtml(agent.role || '-')}</div>
-              </div>
-              <span class="badge">\${action}</span>
-            </div>
-            <div class="action">
-              <span>source: \${escapeHtml(agent.source || '-')}</span>
-              <span>\${time}</span>
-            </div>
-          </div>
-        \`;
-      }).join('');
-    }
-
-    function renderEvents(events) {
-      if (!events || events.length === 0) {
-        eventsEl.innerHTML = '<div class="empty">No events in stream yet.\\n\\nTry command in IDE then emit:\\nnode .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-analyze</div>';
-        return;
+      for (const [id] of agents.entries()) {
+        if (!seen.has(id)) {
+          agents.delete(id);
+          deskByAgent.delete(id);
+        }
       }
 
-      eventsEl.innerHTML = events.map((evt) => {
-        return \`
-          <div class="event">
-            <div class="event-head">[\${escapeHtml(evt.ts || '-')}] \${escapeHtml(evt.source || '-')}</div>
-            <div class="event-body"><strong>\${escapeHtml(evt.agent_name || evt.agent_id || 'agent')}</strong> • \${escapeHtml(evt.action || 'idle')} • \${escapeHtml(evt.task || '-')}</div>
-            \${evt.message ? \`<div class="event-body">\${escapeHtml(evt.message)}</div>\` : ''}
-          </div>
-        \`;
-      }).join('');
+      const root = payload.root || '(no workspace)';
+      const eventsPath = payload.eventsPath || '(no events path)';
+      metaEl.textContent = root + ' • ' + eventsPath;
+      kAgentsEl.textContent = 'agents: ' + (state.agents || []).length;
+      kEventsEl.textContent = 'events: ' + (state.events || []).length;
+      const latest = (state.events && state.events[0] && state.events[0].ts) || null;
+      lastStateTs = latest ? timeLabel(latest) : '-';
+      kUpdatedEl.textContent = 'updated: ' + lastStateTs;
     }
+
+    function drawGrid() {
+      ctx.fillStyle = '#0a120d';
+      ctx.fillRect(0, 0, office.w, office.h);
+
+      ctx.strokeStyle = 'rgba(104, 164, 120, 0.12)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < office.w; x += 24) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, office.h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < office.h; y += 24) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(office.w, y + 0.5);
+        ctx.stroke();
+      }
+    }
+
+    function drawOffice() {
+      drawGrid();
+
+      // Reading zone
+      ctx.fillStyle = '#11271c';
+      ctx.fillRect(office.reading.x - 50, office.reading.y - 36, 98, 62);
+      ctx.strokeStyle = '#3c6d4e';
+      ctx.strokeRect(office.reading.x - 50, office.reading.y - 36, 98, 62);
+      ctx.fillStyle = '#9cd7b0';
+      ctx.fillText('READ', office.reading.x - 20, office.reading.y - 12);
+
+      // Waiting zone
+      ctx.fillStyle = '#2a2410';
+      ctx.fillRect(office.waiting.x - 50, office.waiting.y - 36, 98, 62);
+      ctx.strokeStyle = '#6e5f33';
+      ctx.strokeRect(office.waiting.x - 50, office.waiting.y - 36, 98, 62);
+      ctx.fillStyle = '#f7db8e';
+      ctx.fillText('WAIT', office.waiting.x - 20, office.waiting.y - 12);
+
+      // Desks
+      for (const desk of office.desks) {
+        ctx.fillStyle = '#14251b';
+        ctx.fillRect(desk.x - 40, desk.y - 20, 80, 34);
+        ctx.strokeStyle = '#3f6e50';
+        ctx.strokeRect(desk.x - 40, desk.y - 20, 80, 34);
+
+        ctx.fillStyle = '#203a2b';
+        ctx.fillRect(desk.x - 12, desk.y - 30, 24, 8);
+        ctx.fillStyle = '#6aeaa0';
+        ctx.fillRect(desk.x - 9, desk.y - 28, 18, 4);
+
+        ctx.fillStyle = '#111b14';
+        ctx.fillRect(desk.x - 12, desk.y + 15, 24, 10);
+      }
+    }
+
+    function stepAgent(agent, dt, now) {
+      const dx = agent.tx - agent.x;
+      const dy = agent.ty - agent.y;
+      const dist = Math.hypot(dx, dy);
+      const speed = agent.mode === 'running' ? 90 : 62;
+
+      if (dist > 1.5) {
+        const mv = Math.min(dist, speed * dt);
+        agent.x += (dx / dist) * mv;
+        agent.y += (dy / dist) * mv;
+        agent.step += dt * 8;
+      } else {
+        agent.x = agent.tx;
+        agent.y = agent.ty;
+        if (agent.mode === 'working' && now > agent.wanderAt) {
+          const desk = office.desks[chooseDesk(agent.id)] || { x: 90, y: 90 };
+          const next = randomNear(desk, 34);
+          agent.tx = clamp(next.x, 30, office.w - 30);
+          agent.ty = clamp(next.y, 40, office.h - 28);
+          agent.wanderAt = now + 2200 + (hashString(agent.id + String(now)) % 2000);
+        }
+      }
+    }
+
+    function drawAgent(agent, now) {
+      const bob = Math.sin(agent.step) * 1.4;
+      const x = Math.round(agent.x);
+      const y = Math.round(agent.y + bob);
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 13, 8, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = agent.color;
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head
+      ctx.fillStyle = '#f6d8c1';
+      ctx.beginPath();
+      ctx.arc(x, y - 10, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes
+      ctx.fillStyle = '#0f1d15';
+      const blink = Math.floor(now / 2200 + hashString(agent.id)) % 18 === 0;
+      if (!blink) {
+        ctx.fillRect(x - 3, y - 11, 1, 1);
+        ctx.fillRect(x + 2, y - 11, 1, 1);
+      }
+
+      // Name
+      ctx.fillStyle = '#d7f6df';
+      ctx.font = '10px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(agent.name, x, y - 20);
+
+      if (agent.mode === 'typing') {
+        ctx.fillStyle = '#89ffb2';
+        ctx.fillRect(x - 10, y + 4, 20, 2);
+      }
+
+      if (agent.bubbleUntil > now) {
+        const bx = x + 12;
+        const by = y - 22;
+        ctx.fillStyle = '#f7e7b0';
+        ctx.fillRect(bx, by, 20, 12);
+        ctx.fillStyle = '#2a2410';
+        ctx.fillText('...', bx + 10, by + 9);
+      }
+    }
+
+    function tick(now) {
+      const dt = Math.min(0.05, (now - lastTick) / 1000);
+      lastTick = now;
+
+      drawOffice();
+      const list = [...agents.values()];
+      list.sort((a, b) => a.y - b.y);
+
+      for (const agent of list) {
+        stepAgent(agent, dt, now);
+        drawAgent(agent, now);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    refreshBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'refresh' });
+    });
 
     window.addEventListener('message', (event) => {
       const msg = event.data;
       if (!msg || msg.type !== 'state') return;
-      const payload = msg.payload || {};
-      renderAgents(payload.agents || []);
-      renderEvents(payload.events || []);
-      metaEl.textContent = \`\${payload.root || '(no workspace)'} • \${payload.eventsPath || '(no events path)'}\`;
-      statusEl.textContent = \`Agents: \${(payload.agents || []).length} • Events: \${(payload.events || []).length}\`;
+      upsertFromState(msg.payload || {});
     });
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      ensureLayout();
+    });
+
+    resizeCanvas();
+    ensureLayout();
+    requestAnimationFrame(tick);
   </script>
 </body>
 </html>`;
@@ -325,7 +602,7 @@ function readEvents(eventsPath) {
           events.push(parsed);
         }
       } catch {
-        // Ignore malformed lines so panel remains resilient.
+        // Keep panel resilient if malformed line exists.
       }
     }
     return events;
@@ -347,7 +624,7 @@ function buildState(events) {
       const tb = new Date(b.ts || 0).getTime();
       return tb - ta;
     })
-    .slice(0, 12);
+    .slice(0, 16);
 
   const recentEvents = [...events]
     .sort((a, b) => {
@@ -355,7 +632,7 @@ function buildState(events) {
       const tb = new Date(b.ts || 0).getTime();
       return tb - ta;
     })
-    .slice(0, 80);
+    .slice(0, 120);
 
   return { agents, events: recentEvents };
 }

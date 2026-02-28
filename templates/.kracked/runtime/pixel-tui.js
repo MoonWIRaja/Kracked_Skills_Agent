@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const readline = require('readline');
+let fs;
+let path;
+let readline;
 
 const RESET = '\x1b[0m';
 const GREEN = '\x1b[32m';
@@ -158,15 +158,19 @@ function render(eventsPath, intervalMs, maxEvents, maxHistory) {
   process.stdout.write(color(DIM, 'Press q to quit. Waiting for new events...\n'));
 }
 
-function main() {
+async function main() {
+  fs = await import('node:fs');
+  path = await import('node:path');
+  readline = await import('node:readline');
+
   const args = parseArgs(process.argv.slice(2));
   const intervalMs = toPositiveInt(args.interval, 1000);
   const maxEvents = toPositiveInt(args['max-events'] || args.maxEvents, 12);
   const maxHistory = toPositiveInt(args['max-history'] || args.maxHistory, 250);
 
-  const runtimeDir = fs.existsSync(path.join(process.cwd(), '.kracked', 'runtime'))
-    ? path.join(process.cwd(), '.kracked', 'runtime')
-    : __dirname;
+  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
+  const scriptDir = path.dirname(process.argv[1] || process.cwd());
+  const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
   const eventsPath = path.join(runtimeDir, 'events.jsonl');
 
   fs.mkdirSync(runtimeDir, { recursive: true });
@@ -204,4 +208,7 @@ function main() {
   }, intervalMs);
 }
 
-main();
+main().catch((err) => {
+  process.stderr.write(`[KD] pixel-tui error: ${err && err.message ? err.message : String(err)}\n`);
+  process.exit(1);
+});

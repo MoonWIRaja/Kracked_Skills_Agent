@@ -87,6 +87,7 @@ KD supports 3 observer modes.
 ### 1. Native Panel (VS Code Family)
 
 For VS Code / Cursor / Windsurf.
+Now uses **animated pixel office mode**: agents walk, move between zones, and react to activity states.
 
 Install extension from project root:
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
+let fs;
+let path;
+let http;
 
 function parseArgs(argv) {
   const out = {};
@@ -329,13 +329,17 @@ function html() {
 </html>`;
 }
 
-function main() {
+async function main() {
+  fs = await import('node:fs');
+  path = await import('node:path');
+  http = await import('node:http');
+
   const args = parseArgs(process.argv.slice(2));
   const port = toPort(args.port, 4892);
 
-  const runtimeDir = fs.existsSync(path.join(process.cwd(), '.kracked', 'runtime'))
-    ? path.join(process.cwd(), '.kracked', 'runtime')
-    : __dirname;
+  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
+  const scriptDir = path.dirname(process.argv[1] || process.cwd());
+  const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
   const eventsPath = path.join(runtimeDir, 'events.jsonl');
   fs.mkdirSync(runtimeDir, { recursive: true });
   if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
@@ -365,4 +369,7 @@ function main() {
   });
 }
 
-main();
+main().catch((err) => {
+  process.stderr.write(`[KD] pixel-web error: ${err && err.message ? err.message : String(err)}\n`);
+  process.exit(1);
+});

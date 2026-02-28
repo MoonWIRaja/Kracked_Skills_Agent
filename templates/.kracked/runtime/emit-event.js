@@ -2,11 +2,8 @@
 
 /**
  * KD Observer Event Emitter
- * Appends one JSON line event to .kracked/runtime/events.jsonl
+ * Works in both CommonJS projects and ESM projects (type: module).
  */
-
-const fs = require('fs');
-const path = require('path');
 
 function parseArgs(argv) {
   const out = {};
@@ -20,28 +17,24 @@ function parseArgs(argv) {
   return out;
 }
 
-function resolveRuntimeDir() {
-  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
-  if (fs.existsSync(cwdRuntime)) return cwdRuntime;
-  return __dirname;
-}
-
 function fail(message) {
   process.stderr.write(`[KD] ${message}\n`);
   process.exit(1);
 }
 
-function main() {
+async function main() {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
   const args = parseArgs(process.argv.slice(2));
 
-  const required = ['source', 'agent-id', 'agent-name', 'role', 'action'];
-  for (const key of required) {
-    if (!args[key]) {
-      fail(`Missing required argument --${key}`);
-    }
+  for (const key of ['source', 'agent-id', 'agent-name', 'role', 'action']) {
+    if (!args[key]) fail(`Missing required argument --${key}`);
   }
 
-  const runtimeDir = resolveRuntimeDir();
+  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
+  const scriptDir = path.dirname(process.argv[1] || process.cwd());
+  const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
   const eventsPath = path.join(runtimeDir, 'events.jsonl');
 
   const event = {
@@ -62,4 +55,6 @@ function main() {
   process.stdout.write('[KD] Event appended\n');
 }
 
-main();
+main().catch((err) => {
+  fail(err && err.message ? err.message : String(err));
+});

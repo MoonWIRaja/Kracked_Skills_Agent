@@ -238,11 +238,11 @@ export default function Home() {
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 rounded-md border border-[#2f5f3a] bg-[#0f2617] px-3 py-1.5">
                 <Users size={15} className="text-[#9ee49f]" />
-                <span className="font-ui text-xs text-[#c9f4d1]">Live Observer</span>
+                <span className="font-ui text-xs text-[#c9f4d1]">KD RPG World</span>
               </div>
               <div className="font-ui flex items-center gap-2 text-xs text-[#96bea0]">
                 <ChevronRight size={14} />
-                Syncing with backend agents and role data
+                Multi-zone map: Guild, Dark Ops, Wild Frontier
               </div>
             </div>
             <div className="flex-1">

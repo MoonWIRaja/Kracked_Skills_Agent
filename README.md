@@ -121,6 +121,7 @@ Attribution: pixel-agents UI style by Pablo De Lucca (MIT).
 ### 2. Web Mirror (Recommended for Antigravity)
 
 Visual browser panel that reads the same KD events stream.
+Default scene is now **KD RPG WORLD** (Guild Command + Dark Ops + Wild Frontier) with main-agent delegation synthesis.
 
 ```bash
 kd-panel-web.bat

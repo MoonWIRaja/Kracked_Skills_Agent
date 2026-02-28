@@ -58,6 +58,10 @@ function normalizeKey(value: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
+function normalizeRole(value: string): string {
+  return normalizeKey(value).replace(/-agent$/, '');
+}
+
 function hashToSpriteIndex(input: string): number {
   let hash = 0;
   for (let i = 0; i < input.length; i++) {
@@ -110,18 +114,18 @@ export class PixelEngine {
   addAgent(id: string, name: string, role: string, color: string) {
     const charId = resolveSpriteIndex(id, role, name);
     const sprite = new CharacterSprite(charId);
-
-    const startX = Math.floor(Math.random() * (this.map.cols - 4)) + 2;
-    const startY = Math.floor(Math.random() * (this.map.rows - 4)) + 2;
+    const roleKey = normalizeRole(role);
+    const agentKey = normalizeKey(id);
+    const spawn = this.map.pickSpawn(roleKey, agentKey);
 
     this.agents.set(id, {
       id,
       name,
       role,
-      x: startX,
-      y: startY,
-      targetX: startX,
-      targetY: startY,
+      x: spawn.x,
+      y: spawn.y,
+      targetX: spawn.x,
+      targetY: spawn.y,
       color,
       speechBubble: null,
       bubbleTimer: 0,
@@ -193,12 +197,9 @@ export class PixelEngine {
         }
 
         if (Math.random() < WANDER_CHANCE) {
-          const nx = Math.floor(Math.random() * this.map.cols);
-          const ny = Math.floor(Math.random() * this.map.rows);
-          if (this.map.isWalkable(nx, ny)) {
-            agent.targetX = nx;
-            agent.targetY = ny;
-          }
+          const next = this.map.randomWalkable();
+          agent.targetX = next.x;
+          agent.targetY = next.y;
         }
       }
 

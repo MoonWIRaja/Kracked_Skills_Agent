@@ -128,7 +128,7 @@ export default function PixelObserver({ agents }: PixelObserverProps) {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between rounded-xl border border-[#2d4a36] bg-[#0b1b12]/90 px-3 py-2">
-        <h3 className="font-arcade text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">Pixel Agent HQ</h3>
+        <h3 className="font-arcade text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">KD RPG World</h3>
         <button
           onClick={playTranscript}
           disabled={isPlaying || scenario.length === 0}
@@ -147,7 +147,7 @@ export default function PixelObserver({ agents }: PixelObserverProps) {
         <h4 className="font-arcade mb-2 text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">Observer Logs</h4>
         <div className="custom-scrollbar flex-1 space-y-1 overflow-y-auto pr-2">
           {logs.length === 0 ? (
-            <div className="font-ui mt-8 text-center text-xs text-[#5f8d66]">No live events. Click Run Scenario.</div>
+            <div className="font-ui mt-8 text-center text-xs text-[#5f8d66]">Guild, Dark Ops, and Wild zones are live. Click Run Scenario.</div>
           ) : (
             logs.map((log, index) => (
               <div key={`${log.timestamp}-${index}`} className="font-ui flex gap-2 text-xs text-[#b6d3b9]">

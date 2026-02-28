@@ -29,6 +29,8 @@ function showHelp() {
   console.log(`    ${c('yellow', '-t, --tools')}     ${c('gray', '<list>')}    IDE tools (comma-separated)`);
   console.log(`    ${c('yellow', '-n, --name')}      ${c('gray', '<name>')}    Project name`);
   console.log(`    ${c('yellow', '-a, --agent')}     ${c('gray', '<name>')}    Main agent display name (default: Amad)`);
+  console.log(`    ${c('yellow', '--panel')}                    Auto-install native Pixel panel after install`);
+  console.log(`    ${c('yellow', '--no-panel')}                 Skip native panel auto-install`);
   console.log(`    ${c('yellow', '-y, --yes')}                  Non-interactive mode`);
   console.log('');
   showDivider();
@@ -40,6 +42,9 @@ function showHelp() {
   console.log('');
   console.log(`    ${c('gray', '# Non-interactive (CI/CD)')}`);
   console.log(`    ${c('cyan', 'npx kracked-skills-agent install --yes --language MS --tools codex,cursor --agent Moon')}`);
+  console.log('');
+  console.log(`    ${c('gray', '# Non-interactive + panel auto-install')}`);
+  console.log(`    ${c('cyan', 'npx kracked-skills-agent install --yes --tools cursor --panel')}`);
   console.log('');
   console.log(`    ${c('gray', '# Via GitHub direct')}`);
   console.log(`    ${c('cyan', 'npx github:MoonWIRaja/Kracked_Skills_Agent install')}`);

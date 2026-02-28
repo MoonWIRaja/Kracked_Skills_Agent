@@ -39,7 +39,7 @@ npx github:MoonWIRaja/Kracked_Skills_Agent install
 ### Non-Interactive Install Example
 
 ```bash
-npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --language MS --tools antigravity,claude-code --agent Moon
+npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --language MS --tools antigravity,claude-code --agent Moon --panel
 ```
 
 ### Install Questions You Will See
@@ -47,6 +47,7 @@ npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --language MS --tools a
 2. IDE tools (codex, antigravity, cursor, opencode, kilocode, cline, claude-code)
 3. Project name
 4. Main Agent name
+5. Install native Pixel panel now? (yes/no)
 
 ---
 
@@ -85,16 +86,27 @@ Open:
 
 ## Pixel Observer Native Panel (VS Code Family)
 
-Yes, native panel is available now for VS Code-compatible IDEs.
+Yes, native panel is available for VS Code-compatible IDEs (VS Code, Cursor, Windsurf).
 
 ### Install Native Panel Extension
 
-```bash
-# from repo root
-npm run panel:package
+During interactive install, KD now asks whether to install native panel immediately.
+For non-interactive install, use `--panel` (or `--no-panel`).
 
-# then install generated .vsix
-code --install-extension ide/vscode-kd-pixel-panel/kd-pixel-panel-0.1.0.vsix
+```bash
+# from your installed project root (recommended)
+kd-panel-install.bat
+
+# or PowerShell
+powershell -ExecutionPolicy Bypass -File .\kd-panel-install.ps1
+```
+
+Manual method:
+
+```bash
+cd .kracked/tools/vscode-kd-pixel-panel
+npx @vscode/vsce package
+code --install-extension .\kd-pixel-panel-0.1.0.vsix
 ```
 
 Open panel from Command Palette:
@@ -108,13 +120,15 @@ Works with event stream from your project:
 
 ### Antigravity Compatibility
 
-Antigravity uses the same bridge:
+Antigravity reads/writes the same KD event stream, so it is compatible with Pixel Observer data flow:
 
 ```bash
 node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-prd --message "PRD ready"
 ```
 
-So native panel can observe Antigravity sessions using this shared stream.
+Note:
+1. Native panel UI is only for VS Code-family IDE extension hosts.
+2. For Antigravity, use Pixel Observer web UI (`frontend` + `backend`) while sharing the same events stream.
 
 ---
 

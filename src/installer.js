@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const { spawnSync } = require('node:child_process');
 const { showStep, showSuccess, showError, showWarning, showInfo, showDivider, c } = require('./display');
 const { SUPPORTED_IDES, generateAdapter, generateIDEConfig } = require('./adapters');
 
@@ -104,6 +105,149 @@ function ensureDirRecursive(dirPath) {
 
 function isValidObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function writePanelHelperScripts(targetDir) {
+  const batContent = `@echo off
+setlocal
+set PANEL_DIR=%~dp0.kracked\\tools\\vscode-kd-pixel-panel
+if not exist "%PANEL_DIR%\\package.json" (
+  echo [KD] Native panel folder not found: %PANEL_DIR%
+  exit /b 1
+)
+cd /d "%PANEL_DIR%"
+echo [KD] Packaging VS Code panel extension...
+call npx @vscode/vsce package
+if errorlevel 1 exit /b 1
+for %%f in (*.vsix) do (
+  set VSIX=%%f
+)
+if "%VSIX%"=="" (
+  echo [KD] No VSIX generated.
+  exit /b 1
+)
+echo [KD] Installing %VSIX%...
+code --install-extension "%PANEL_DIR%\\%VSIX%"
+if errorlevel 1 exit /b 1
+echo [KD] Native panel installed successfully.
+`;
+
+  const ps1Content = `$ErrorActionPreference = "Stop"
+$panelDir = Join-Path $PSScriptRoot ".kracked/tools/vscode-kd-pixel-panel"
+if (-not (Test-Path (Join-Path $panelDir "package.json"))) {
+  Write-Error "[KD] Native panel folder not found: $panelDir"
+}
+
+Set-Location $panelDir
+Write-Host "[KD] Packaging VS Code panel extension..."
+npx @vscode/vsce package
+
+$vsix = Get-ChildItem -Path $panelDir -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $vsix) {
+  Write-Error "[KD] No VSIX generated."
+}
+
+Write-Host "[KD] Installing $($vsix.FullName)..."
+code --install-extension $vsix.FullName
+Write-Host "[KD] Native panel installed successfully."
+`;
+
+  fs.writeFileSync(path.join(targetDir, 'kd-panel-install.bat'), batContent, 'utf8');
+  fs.writeFileSync(path.join(targetDir, 'kd-panel-install.ps1'), ps1Content, 'utf8');
+}
+
+function toBooleanFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (value == null) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n'].includes(normalized)) return false;
+  return null;
+}
+
+function executableName(base) {
+  return process.platform === 'win32' ? `${base}.cmd` : base;
+}
+
+function runCommand(cwd, command, args) {
+  if (process.platform === 'win32') {
+    const escapedArgs = args.map((arg) => `"${String(arg).replace(/"/g, '\\"')}"`);
+    const commandLine = [command, ...escapedArgs].join(' ');
+    return spawnSync(commandLine, {
+      cwd,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      shell: true,
+    });
+  }
+
+  return spawnSync(command, args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+}
+
+function formatRunError(result) {
+  if (!result) return 'unknown error';
+  if (result.error && result.error.code === 'ENOENT') return 'command not found';
+  if (result.error && result.error.message) return result.error.message;
+  const stderr = (result.stderr || '').trim();
+  if (stderr) return stderr.split('\n').slice(-1)[0];
+  const stdout = (result.stdout || '').trim();
+  if (stdout) return stdout.split('\n').slice(-1)[0];
+  return `exit code ${result.status}`;
+}
+
+function tryInstallNativePanel(targetDir) {
+  const panelDir = path.join(targetDir, '.kracked', 'tools', 'vscode-kd-pixel-panel');
+  const packageJsonPath = path.join(panelDir, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return {
+      ok: false,
+      reason: `Native panel folder not found: ${panelDir}`,
+    };
+  }
+
+  const npxResult = runCommand(panelDir, executableName('npx'), ['@vscode/vsce', 'package']);
+  if (npxResult.status !== 0) {
+    return {
+      ok: false,
+      reason: `Failed to package VSIX (${formatRunError(npxResult)})`,
+    };
+  }
+
+  const vsixFiles = fs
+    .readdirSync(panelDir)
+    .filter((name) => name.toLowerCase().endsWith('.vsix'))
+    .map((name) => ({
+      name,
+      fullPath: path.join(panelDir, name),
+      mtimeMs: fs.statSync(path.join(panelDir, name)).mtimeMs,
+    }))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  if (vsixFiles.length === 0) {
+    return {
+      ok: false,
+      reason: 'VSIX file not generated',
+    };
+  }
+
+  const vsixPath = vsixFiles[0].fullPath;
+  const codeResult = runCommand(panelDir, executableName('code'), ['--install-extension', vsixPath]);
+  if (codeResult.status !== 0) {
+    return {
+      ok: false,
+      reason: `Failed to install VSIX (${formatRunError(codeResult)})`,
+      vsixPath,
+    };
+  }
+
+  return {
+    ok: true,
+    vsixPath,
+  };
 }
 
 function escapeRegExp(value) {
@@ -415,6 +559,16 @@ async function install(args) {
   const roster = buildAgentRoster(mainAgentName);
   showSuccess(`Professional Agents: ${roster.professional.map((a) => a.name).join(', ')}`);
 
+  let installPanelNow = toBooleanFlag(args.panel);
+  if (installPanelNow == null && !args.yes) {
+    const panelAnswer = await prompt(
+      `  ${c('brightCyan', '->')} Install native Pixel panel now? (requires VS Code CLI) (y/N): `
+    );
+    installPanelNow = panelAnswer.toLowerCase() === 'y' || panelAnswer.toLowerCase() === 'yes';
+  }
+  if (installPanelNow == null) installPanelNow = false;
+  showSuccess(`Native Panel Install: ${installPanelNow ? 'enabled' : 'skip for now'}`);
+
   currentStep++;
   showStep(currentStep, totalSteps, 'Copying KD system files...');
   showDivider();
@@ -441,6 +595,16 @@ async function install(args) {
   } else {
     createOutputStructure(outputDir);
     showSuccess('KD_output/ created output structure');
+  }
+
+  const panelSrc = path.join(__dirname, '..', 'ide', 'vscode-kd-pixel-panel');
+  const panelDest = path.join(krackDir, 'tools', 'vscode-kd-pixel-panel');
+  if (fs.existsSync(panelSrc)) {
+    copyDirRecursive(panelSrc, panelDest);
+    writePanelHelperScripts(targetDir);
+    showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install scripts created');
+  } else {
+    showWarning('Native panel source not found; skipping panel scaffolding');
   }
 
   applyAgentRosterToTemplates(krackDir, outputDir, mainAgentName, roster, { mutateOutput: !wasInstalled });
@@ -565,6 +729,19 @@ ${selectedTools.map((t) => `  - ${t}`).join('\n')}
     writeInitialStatus(outputDir, projectName, mainAgentName);
   } else {
     showInfo('Preserved existing KD_output/status/status.md');
+  }
+
+  if (installPanelNow) {
+    showInfo('Installing native Pixel panel...');
+    const panelResult = tryInstallNativePanel(targetDir);
+    if (panelResult.ok) {
+      showSuccess(`Native panel installed (${path.basename(panelResult.vsixPath)})`);
+    } else {
+      showWarning(`Native panel auto-install failed: ${panelResult.reason}`);
+      showInfo('Run kd-panel-install.bat or kd-panel-install.ps1 later to install manually');
+    }
+  } else {
+    showInfo('Native panel skipped. Use kd-panel-install.bat or kd-panel-install.ps1 anytime');
   }
 
   showSuccess('Configuration saved');

@@ -10,6 +10,7 @@ function parseArgs(argv) {
     tools: null,           // comma-separated list of IDE tools
     name: null,            // project name
     agent: null,           // main agent display name
+    panel: null,           // install native panel now: true/false/null
     yes: false,            // non-interactive mode
   };
 
@@ -48,6 +49,19 @@ function parseArgs(argv) {
       case '--agent':
       case '-a':
         result.agent = argv[++i] || null;
+        break;
+
+      case '--panel':
+        if (argv[i + 1] && !argv[i + 1].startsWith('-')) {
+          const value = String(argv[++i]).toLowerCase();
+          result.panel = value === '1' || value === 'true' || value === 'yes' || value === 'y';
+        } else {
+          result.panel = true;
+        }
+        break;
+
+      case '--no-panel':
+        result.panel = false;
         break;
 
       case '--yes':

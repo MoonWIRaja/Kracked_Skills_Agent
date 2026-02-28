@@ -27,11 +27,14 @@ test('installer creates core KD directories in non-interactive mode', async () =
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'events.jsonl')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'emit-event.js')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'pixel-tui.js')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'pixel-web.js')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'package.json')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-install.bat')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-install.ps1')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-tui.bat')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-tui.ps1')));
+    assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-web.bat')));
+    assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-web.ps1')));
     assert.ok(fs.existsSync(path.join(tempDir, 'KD_output', 'status', 'status.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'INSTRUCTIONS.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'commands', 'kd.md')));

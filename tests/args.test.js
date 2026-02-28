@@ -20,10 +20,11 @@ test('parseArgs supports --panel with explicit boolean-like value', () => {
 });
 
 test('parseArgs supports observer tuning flags', () => {
-  const args = parseArgs(['observe', '--interval', '800', '--max-events', '15', '--max-history', '300']);
+  const args = parseArgs(['observe', '--interval', '800', '--max-events', '15', '--max-history', '300', '--port', '4900']);
 
   assert.equal(args.command, 'observe');
   assert.equal(args.interval, '800');
   assert.equal(args.maxEvents, '15');
   assert.equal(args.maxHistory, '300');
+  assert.equal(args.port, '4900');
 });

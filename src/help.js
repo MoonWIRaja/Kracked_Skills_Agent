@@ -18,6 +18,7 @@ function showHelp() {
   console.log(`    ${c('cyan', 'uninstall')}   Remove KD from project`);
   console.log(`    ${c('cyan', 'stats')}       Show XP, level, and agent stats`);
   console.log(`    ${c('cyan', 'observe')}     Open KD Pixel observer in terminal (TUI)`);
+  console.log(`    ${c('cyan', 'observe-web')} Open KD Pixel observer in browser`);
   console.log(`    ${c('cyan', 'help')}        Show this help message`);
   console.log(`    ${c('cyan', 'version')}     Show version`);
   console.log('');
@@ -35,6 +36,7 @@ function showHelp() {
   console.log(`    ${c('yellow', '--interval')}                 Observer refresh interval in ms`);
   console.log(`    ${c('yellow', '--max-events')}               Observer max visible recent events`);
   console.log(`    ${c('yellow', '--max-history')}              Observer max parsed event history`);
+  console.log(`    ${c('yellow', '--port')}                     Observer web port (default: 4892)`);
   console.log(`    ${c('yellow', '-y, --yes')}                  Non-interactive mode`);
   console.log('');
   showDivider();
@@ -58,6 +60,9 @@ function showHelp() {
   console.log('');
   console.log(`    ${c('gray', '# Open terminal observer (Antigravity-friendly)')}`);
   console.log(`    ${c('cyan', 'npx kracked-skills-agent observe --interval 800 --max-events 15')}`);
+  console.log('');
+  console.log(`    ${c('gray', '# Open web observer mirror')}`);
+  console.log(`    ${c('cyan', 'npx kracked-skills-agent observe-web --port 4892')}`);
   console.log('');
   showDivider();
   console.log('');

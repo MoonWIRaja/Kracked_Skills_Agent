@@ -14,6 +14,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
+    "onView:kdPixel.panelView",
     "onCommand:kdPixel.openPanel",
     "onCommand:kdPixel.refreshPanel"
   ],
@@ -22,20 +23,38 @@
     "commands": [
       {
         "command": "kdPixel.openPanel",
-        "title": "KD: Open Pixel Observer Panel"
+        "title": "KD Pixel: Show Panel"
       },
       {
         "command": "kdPixel.refreshPanel",
         "title": "KD: Refresh Pixel Observer Panel"
       }
     ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "kdPixel-panel",
+          "title": "KD Pixel",
+          "icon": "$(window)"
+        }
+      ]
+    },
+    "views": {
+      "kdPixel-panel": [
+        {
+          "type": "webview",
+          "id": "kdPixel.panelView",
+          "name": "Pixel Observer"
+        }
+      ]
+    },
     "configuration": {
       "title": "KD Pixel Panel",
       "properties": {
         "kdPixel.autoOpen": {
           "type": "boolean",
-          "default": false,
-          "description": "Automatically open KD Pixel panel after startup if a KD workspace is detected."
+          "default": true,
+          "description": "Automatically focus KD Pixel panel after startup if a KD workspace is detected."
         },
         "kdPixel.eventsPath": {
           "type": "string",

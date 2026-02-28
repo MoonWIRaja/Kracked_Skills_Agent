@@ -50,4 +50,39 @@ async function runObserver(args) {
   });
 }
 
-module.exports = { runObserver };
+async function runObserverWeb(args) {
+  const targetDir = path.resolve(args.directory || process.cwd());
+  const scriptPath = path.join(targetDir, '.kracked', 'runtime', 'pixel-web.js');
+
+  if (!fs.existsSync(scriptPath)) {
+    showError('Pixel web runtime not found. Re-run install in this project first.');
+    return;
+  }
+
+  const port = Number.parseInt(String(args.port || ''), 10);
+  const resolvedPort = Number.isFinite(port) && port > 0 ? port : 4892;
+
+  showInfo(`Starting KD Pixel Web observer on http://localhost:${resolvedPort} ...`);
+  showInfo('Press Ctrl+C to stop.');
+
+  await new Promise((resolve) => {
+    const child = spawn(process.execPath, [scriptPath, '--port', String(resolvedPort)], {
+      cwd: targetDir,
+      stdio: 'inherit',
+    });
+
+    child.on('error', (err) => {
+      showError(`Failed to start Pixel web observer: ${err.message}`);
+      resolve();
+    });
+
+    child.on('exit', (code) => {
+      if (code && code !== 0) {
+        showWarning(`Pixel web observer exited with code ${code}`);
+      }
+      resolve();
+    });
+  });
+}
+
+module.exports = { runObserver, runObserverWeb };

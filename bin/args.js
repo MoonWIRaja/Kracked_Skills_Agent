@@ -14,6 +14,7 @@ function parseArgs(argv) {
     interval: null,        // observer refresh interval
     maxEvents: null,       // observer max rows
     maxHistory: null,      // observer max parsed history
+    port: null,            // observer web port
     yes: false,            // non-interactive mode
   };
 
@@ -82,6 +83,10 @@ function parseArgs(argv) {
 
       case '--max-history':
         result.maxHistory = argv[++i] || null;
+        break;
+
+      case '--port':
+        result.port = argv[++i] || null;
         break;
 
       case '--help':

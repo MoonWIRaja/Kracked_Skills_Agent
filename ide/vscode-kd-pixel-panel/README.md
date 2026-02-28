@@ -21,9 +21,14 @@ code --install-extension kd-pixel-panel-0.1.0.vsix
 
 ## Open Panel
 
-Command Palette:
+This extension now appears as a native panel container (similar behavior to Pixel Agents):
 
-- `KD: Open Pixel Observer Panel`
+- Panel area icon/title: `KD Pixel`
+- View name: `Pixel Observer`
+
+Command Palette fallback:
+
+- `KD Pixel: Show Panel`
 
 ## Data Source
 

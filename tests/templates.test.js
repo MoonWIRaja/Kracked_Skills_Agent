@@ -14,4 +14,5 @@ test('core templates exist', () => {
   assert.ok(fs.existsSync(path.join(root, 'runtime', 'SCHEMA.md')));
   assert.ok(fs.existsSync(path.join(root, 'runtime', 'emit-event.js')));
   assert.ok(fs.existsSync(path.join(root, 'runtime', 'pixel-tui.js')));
+  assert.ok(fs.existsSync(path.join(root, 'runtime', 'pixel-web.js')));
 });

@@ -1,4 +1,4 @@
-# Kracked_Skills Agent (KD)
+﻿# Kracked_Skills Agent (KD)
 
 <p align="center">
 <strong>Structured Multi-Agent AI Execution System for Real Software Delivery</strong>
@@ -13,12 +13,11 @@ Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
 </p>
 
 <p align="center">
-<a href="#-quick-start">Quick Start</a> •
-<a href="#-after-install-what-to-run">After Install</a> •
-<a href="#-pixel-observer-native-panel-vs-code-family">Pixel Native Panel</a> •
-<a href="#-pixel-observer-terminal-tui-antigravity-friendly">Pixel Terminal TUI</a> •
-<a href="#-commands">Commands</a> •
-<a href="#-supported-tools--adapters">Supported Tools</a>
+<a href="#quick-start">Quick Start</a> |
+<a href="#what-install-sets-up">What Install Sets Up</a> |
+<a href="#pixel-observer-modes">Pixel Observer Modes</a> |
+<a href="#commands">Commands</a> |
+<a href="#supported-tools-and-adapters">Supported Tools</a>
 </p>
 
 ---
@@ -27,37 +26,51 @@ Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
 
 ## Quick Start
 
-### Install in Your Project
+### Install (Interactive)
 
 ```bash
-# npm (recommended)
-npx kracked-skills-agent install
-
-# or direct from this repo
 npx github:MoonWIRaja/Kracked_Skills_Agent install
 ```
 
-### Non-Interactive Install Example
+### Install (Non-Interactive)
 
 ```bash
 npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --language MS --tools antigravity,claude-code --agent Moon --panel
 ```
 
-### Install Questions You Will See
+### Questions During Interactive Install
+
 1. Language (EN / MS / custom)
 2. IDE tools (codex, antigravity, cursor, opencode, kilocode, cline, claude-code)
 3. Project name
 4. Main Agent name
 5. Install native Pixel panel now? (yes/no)
 
-Installer UI now uses a cyberpunk terminal theme (black/green style).
+Installer now uses a cyberpunk black-green CLI style.
 
----
+## What Install Sets Up
 
-## After Install (What To Run)
+Yes, **install biasa** sekarang setup semua keperluan utama KD.
 
-### In IDE (Antigravity, Codex, Cursor, etc.)
-Use KD commands directly in chat:
+Auto-created in your project:
+
+1. `.kracked/` system files (agents, workflows, prompts, skills, config)
+2. `KD_output/` output folders
+3. Runtime observer files:
+   - `.kracked/runtime/events.jsonl`
+   - `.kracked/runtime/SCHEMA.md`
+   - `.kracked/runtime/emit-event.js`
+   - `.kracked/runtime/pixel-tui.js`
+   - `.kracked/runtime/pixel-web.js`
+4. Helper scripts at project root:
+   - `kd-panel-install.bat` / `kd-panel-install.ps1`
+   - `kd-panel-tui.bat` / `kd-panel-tui.ps1`
+   - `kd-panel-web.bat` / `kd-panel-web.ps1`
+5. IDE adapter files based on selected tools
+
+## After Install
+
+In your AI IDE chat:
 
 ```text
 /kd
@@ -65,81 +78,55 @@ Use KD commands directly in chat:
 /kd-analyze
 ```
 
-If IDE does not auto-suggest slash commands, type manually.
+If slash command suggestions do not appear, type manually.
 
-### To See Pixel Observer UI (Web)
+## Pixel Observer Modes
 
-```bash
-# terminal 1
-cd backend
-npm install
-node server.js
+KD supports 3 observer modes.
 
-# terminal 2
-cd frontend
-npm install
-npm run dev
-```
+### 1. Native Panel (VS Code Family)
 
-Open:
-- `http://localhost:4892` (Pixel Observer UI)
-- backend health: `http://localhost:4891/api/health`
+For VS Code / Cursor / Windsurf.
 
----
-
-## Pixel Observer Native Panel (VS Code Family)
-
-Yes, native panel is available for VS Code-compatible IDEs (VS Code, Cursor, Windsurf).
-
-### Install Native Panel Extension
-
-During interactive install, KD now asks whether to install native panel immediately.
-For non-interactive install, use `--panel` (or `--no-panel`).
+Install extension from project root:
 
 ```bash
-# from your installed project root (recommended)
 kd-panel-install.bat
-
-# or PowerShell
+# or
 powershell -ExecutionPolicy Bypass -File .\kd-panel-install.ps1
 ```
 
-Manual method:
-
-```bash
-cd .kracked/tools/vscode-kd-pixel-panel
-npx @vscode/vsce package
-code --install-extension .\kd-pixel-panel-0.1.0.vsix
-```
-
-Open panel from Command Palette:
+After install + IDE reload, open from bottom panel area:
 
 ```text
-KD: Open Pixel Observer Panel
+KD Pixel -> Pixel Observer
 ```
 
-Works with event stream from your project:
-- `.kracked/runtime/events.jsonl`
+Command palette fallback:
 
-### Antigravity Compatibility
+```text
+KD Pixel: Show Panel
+```
 
-Antigravity reads/writes the same KD event stream, so it is compatible with Pixel Observer data flow:
+### 2. Web Mirror (Recommended for Antigravity)
+
+Visual browser panel that reads the same KD events stream.
 
 ```bash
-node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-prd --message "PRD ready"
+kd-panel-web.bat
+# or
+powershell -ExecutionPolicy Bypass -File .\kd-panel-web.ps1
 ```
 
-Note:
-1. Native panel UI is only for VS Code-family IDE extension hosts.
-2. For Antigravity, use Pixel Observer web UI (`frontend` + `backend`) or terminal TUI (`kd-panel-tui.*`) with the same events stream.
+Custom port:
 
----
+```bash
+kd-panel-web.bat 4900
+# or
+npx kracked-skills-agent observe-web --port 4900
+```
 
-## Pixel Observer Terminal TUI (Antigravity-Friendly)
-
-KD now includes a terminal observer panel for any IDE, including Antigravity.
-
-Run from installed project root:
+### 3. Terminal TUI
 
 ```bash
 kd-panel-tui.bat
@@ -147,89 +134,84 @@ kd-panel-tui.bat
 powershell -ExecutionPolicy Bypass -File .\kd-panel-tui.ps1
 ```
 
-Or via CLI command:
+Or via CLI:
 
 ```bash
 npx kracked-skills-agent observe --interval 800 --max-events 15
 ```
 
-Controls:
-1. Press `q` to quit.
-2. Reads `.kracked/runtime/events.jsonl` in real time.
-3. Theme: cyberpunk black-green terminal.
+Press `q` to quit TUI.
 
----
+## Antigravity Note
 
-## Pixel Observer (How It Works)
+- Antigravity can fully use KD workflows and event stream.
+- Native `.vsix` panel cannot be embedded inside Antigravity app host.
+- Use `kd-panel-web.*` (recommended visual) or `kd-panel-tui.*`.
 
-1. KD adapters share one observer event stream:
-2. Native panel, terminal TUI, and web UI all read the same stream.
-3. `.kracked/runtime/events.jsonl`
-4. Schema file:
-5. `.kracked/runtime/SCHEMA.md`
-6. Event emitter script:
-7. `.kracked/runtime/emit-event.js`
+## Observer Flow
 
-Manual event example:
+```mermaid
+flowchart LR
+  A[IDE Chat /kd-*] --> B[Adapter Workflow]
+  B --> C[emit-event.js]
+  C --> D[.kracked/runtime/events.jsonl]
+  D --> E[VS Code Native Panel]
+  D --> F[Web Mirror]
+  D --> G[Terminal TUI]
+```
+
+Manual event sample:
 
 ```bash
 node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-prd --message "PRD ready"
 ```
 
-Observer flow:
+## Core System Behavior
 
-```mermaid
-flowchart LR
-  A[IDE Chat Command /kd-*] --> B[Adapter Workflow]
-  B --> C[emit-event.js]
-  C --> D[.kracked/runtime/events.jsonl]
-  D --> E[VS Code Native Panel]
-  D --> H[Terminal TUI]
-  D --> F[Backend API]
-  F --> G[Web Pixel Observer UI]
-```
+### Main Agent and Professional Agents
 
----
+1. Main Agent name is configurable (`--agent`)
+2. Professional agent names are randomized from configured name pool
+3. XP and level are tied to Main Agent in `.kracked/security/xp.json`
 
-## Core Features
+### Safe Reinstall (Same Project)
 
-### Main Agent + Professional Agents
-1. Main Agent name is configurable during install (`--agent`).
-2. Professional agents are randomized automatically from name pool.
-3. XP and Level are tied to Main Agent in `.kracked/security/xp.json`.
+Reinstall is supported and preserves key user progress files:
 
-### Safe Reinstall in Same Project
-Reinstall is supported and now preserves key work files:
 1. `KD_output/status/status.md`
-2. `.kracked/security/xp.json` (progress preserved, agent name updated if changed)
+2. `.kracked/security/xp.json`
 3. `.kracked/runtime/events.jsonl`
 4. `.kracked/skills/memories/SKILL.md`
 
-Use:
+Example reinstall:
 
 ```bash
 npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --agent Qih --tools antigravity,claude-code
 ```
 
----
-
 ## Commands
 
-| Category | Commands | Description |
-|---|---|---|
-| Core | `/kd`, `/kd-help`, `/kd-status` | Menu, guidance, state |
-| Discovery | `/kd-analyze`, `/kd-brainstorm` | Discovery and solution shaping |
-| Product | `/kd-prd`, `/kd-story` | Requirements and stories |
-| Engineering | `/kd-dev-story`, `/kd-refactor` | Build and refactor |
-| Quality | `/kd-code-review`, `/kd-test`, `/kd-security-audit` | QA and security |
-| Delivery | `/kd-deploy`, `/kd-release` | Deploy and release |
+### IDE Workflow Commands
 
-CLI utility command:
-- `npx kracked-skills-agent observe` — open terminal Pixel TUI observer.
+- `/kd`, `/kd-help`, `/kd-status`
+- `/kd-analyze`, `/kd-brainstorm`
+- `/kd-prd`, `/kd-story`
+- `/kd-dev-story`, `/kd-refactor`
+- `/kd-code-review`, `/kd-test`, `/kd-security-audit`
+- `/kd-deploy`, `/kd-release`
 
----
+### CLI Utility Commands
 
-## Supported Tools & Adapters
+```bash
+npx kracked-skills-agent help
+npx kracked-skills-agent stats
+npx kracked-skills-agent observe
+npx kracked-skills-agent observe-web --port 4892
+npx kracked-skills-agent update
+npx kracked-skills-agent uninstall
+```
+
+## Supported Tools and Adapters
 
 | Tool | Adapter Output | Auto Setup |
 |---|---|---|
@@ -241,55 +223,68 @@ CLI utility command:
 | Cline | `.clinerules/workflows/` | Yes |
 | Claude Code | `CLAUDE.md` + `.claude/commands/` | Yes |
 
----
-
 ## Project Structure
 
 ```text
 .kracked/
-├── agents/                    # role definitions
-├── prompts/                   # system and role prompts
-├── workflows/                 # KD command workflows
-├── skills/                    # modular skills
-├── runtime/
-│   ├── SCHEMA.md              # observer event schema
-│   ├── events.jsonl           # shared event stream
-│   └── emit-event.js          # event appender
-│   └── pixel-tui.js           # terminal observer panel
-├── security/
-│   └── xp.json                # main-agent XP tracking
-└── config/
-    ├── settings.json
-    ├── main-agent.json
-    └── agents.json
+|-- agents/
+|-- prompts/
+|-- workflows/
+|-- skills/
+|-- runtime/
+|   |-- SCHEMA.md
+|   |-- events.jsonl
+|   |-- emit-event.js
+|   |-- pixel-tui.js
+|   `-- pixel-web.js
+|-- security/
+|   `-- xp.json
+`-- config/
+    |-- settings.json
+    |-- main-agent.json
+    `-- agents.json
 
 KD_output/
-└── status/status.md
-
-Project root helper scripts:
-- `kd-panel-install.bat` / `kd-panel-install.ps1`
-- `kd-panel-tui.bat` / `kd-panel-tui.ps1`
+`-- status/status.md
 ```
 
----
+## Troubleshooting
 
-## Maintenance
+### `npm run panel:package` missing in target project
+
+Use project helper script instead:
 
 ```bash
-npx kracked-skills-agent update
-npx kracked-skills-agent uninstall
-npx kracked-skills-agent help
+kd-panel-install.bat
 ```
 
----
+### VSIX install fails
+
+Check:
+
+1. VS Code CLI `code` is available in PATH
+2. You are running from project root
+3. `.kracked/tools/vscode-kd-pixel-panel` exists
+
+### Antigravity but panel tidak muncul
+
+Use:
+
+```bash
+kd-panel-web.bat
+```
 
 ## License
 
 MIT License - see [LICENSE](LICENSE).
 
----
+## About
+
+KRACKEDDEVS builds AI-powered developer tools.
+
+- Website: [krackeddevs.com](https://krackeddevs.com/)
+- GitHub: [MoonWIRaja/Kracked_Skills_Agent](https://github.com/MoonWIRaja/Kracked_Skills_Agent)
 
 <p align="center">
-<strong>KD finishes what it starts.</strong><br>
-<em>by KRACKEDDEVS</em>
+<strong>KD finishes what it starts.</strong>
 </p>

@@ -9,6 +9,7 @@
  *   npx kracked-skills-agent uninstall        # Remove KD from project
  *   npx kracked-skills-agent stats            # Show XP & level stats
  *   npx kracked-skills-agent observe          # Open terminal Pixel observer (TUI)
+ *   npx kracked-skills-agent observe-web      # Open web Pixel observer mirror
  *   npx kracked-skills-agent help             # Show help
  */
 
@@ -17,7 +18,7 @@ const { install } = require('../src/installer');
 const { update } = require('../src/updater');
 const { uninstall } = require('../src/uninstaller');
 const { showStats } = require('../src/stats');
-const { runObserver } = require('../src/observer');
+const { runObserver, runObserverWeb } = require('../src/observer');
 const { showHelp } = require('../src/help');
 const { showBanner } = require('../src/display');
 
@@ -47,6 +48,11 @@ async function main() {
     case 'observe':
     case 'panel-tui':
       await runObserver(args);
+      break;
+
+    case 'observe-web':
+    case 'panel-web':
+      await runObserverWeb(args);
       break;
 
     case 'help':

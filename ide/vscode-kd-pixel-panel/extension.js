@@ -3,72 +3,68 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_EVENTS = 200;
-let panelController = null;
+const VIEW_ID = 'kdPixel.panelView';
+let provider = null;
 
 function activate(context) {
-  panelController = new KDPanelController(context);
+  provider = new KDPanelViewProvider(context);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('kdPixel.openPanel', () => panelController.open()),
-    vscode.commands.registerCommand('kdPixel.refreshPanel', () => panelController.refresh())
+    vscode.window.registerWebviewViewProvider(VIEW_ID, provider),
+    vscode.commands.registerCommand('kdPixel.openPanel', () => {
+      vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+    }),
+    vscode.commands.registerCommand('kdPixel.refreshPanel', () => provider.refresh())
   );
 
-  const autoOpen = vscode.workspace.getConfiguration('kdPixel').get('autoOpen', false);
-  if (autoOpen && panelController.isKDWorkspace()) {
-    panelController.open();
+  const autoOpen = vscode.workspace.getConfiguration('kdPixel').get('autoOpen', true);
+  if (autoOpen && provider.isKDWorkspace()) {
+    vscode.commands.executeCommand(`${VIEW_ID}.focus`);
   }
 }
 
 function deactivate() {
-  if (panelController) panelController.dispose();
+  if (provider) provider.dispose();
 }
 
-class KDPanelController {
+class KDPanelViewProvider {
   constructor(context) {
     this.context = context;
-    this.panel = null;
+    this.view = null;
     this.interval = null;
   }
 
-  open() {
-    if (this.panel) {
-      this.panel.reveal(vscode.ViewColumn.Beside);
-      this.refresh();
-      return;
-    }
+  resolveWebviewView(webviewView) {
+    this.view = webviewView;
+    this.view.webview.options = {
+      enableScripts: true,
+    };
+    this.view.webview.html = this.getHtml();
 
-    this.panel = vscode.window.createWebviewPanel(
-      'kdPixelPanel',
-      'KD Pixel Observer',
-      vscode.ViewColumn.Beside,
-      { enableScripts: true }
-    );
+    this.view.onDidDispose(() => {
+      this.stopPolling();
+      this.view = null;
+    });
 
-    this.panel.webview.html = this.getHtml();
-    this.panel.onDidDispose(() => this.dispose(), null, this.context.subscriptions);
-    this.panel.webview.onDidReceiveMessage(
-      (message) => {
-        if (message && message.type === 'refresh') {
-          this.refresh();
-        }
-      },
-      null,
-      this.context.subscriptions
-    );
+    this.view.webview.onDidReceiveMessage((message) => {
+      if (message && message.type === 'refresh') {
+        this.refresh();
+      }
+    });
 
     this.startPolling();
     this.refresh();
   }
 
   refresh() {
-    if (!this.panel) return;
+    if (!this.view) return;
 
     const root = this.getWorkspaceRoot();
     const eventsPath = this.getEventsPath(root);
     const events = readEvents(eventsPath);
     const state = buildState(events);
 
-    this.panel.webview.postMessage({
+    this.view.webview.postMessage({
       type: 'state',
       payload: {
         root,
@@ -93,11 +89,6 @@ class KDPanelController {
 
   dispose() {
     this.stopPolling();
-    if (this.panel) {
-      const p = this.panel;
-      this.panel = null;
-      p.dispose();
-    }
   }
 
   isKDWorkspace() {

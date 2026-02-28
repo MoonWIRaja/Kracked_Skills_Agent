@@ -170,10 +170,37 @@ if (-not (Test-Path $tuiFile)) {
 node $tuiFile @args
 `;
 
+  const webBat = `@echo off
+setlocal
+set WEB_FILE=%~dp0.kracked\\runtime\\pixel-web.js
+if not exist "%WEB_FILE%" (
+  echo [KD] Web panel script not found: %WEB_FILE%
+  exit /b 1
+)
+set PORT=4892
+if not "%1"=="" set PORT=%1
+start "" http://localhost:%PORT%
+node "%WEB_FILE%" --port %PORT%
+`;
+
+  const webPs1 = `param(
+  [int]$Port = 4892
+)
+$ErrorActionPreference = "Stop"
+$webFile = Join-Path $PSScriptRoot ".kracked/runtime/pixel-web.js"
+if (-not (Test-Path $webFile)) {
+  Write-Error "[KD] Web panel script not found: $webFile"
+}
+Start-Process "http://localhost:$Port" | Out-Null
+node $webFile --port $Port
+`;
+
   fs.writeFileSync(path.join(targetDir, 'kd-panel-install.bat'), batContent, 'utf8');
   fs.writeFileSync(path.join(targetDir, 'kd-panel-install.ps1'), ps1Content, 'utf8');
   fs.writeFileSync(path.join(targetDir, 'kd-panel-tui.bat'), tuiBat, 'utf8');
   fs.writeFileSync(path.join(targetDir, 'kd-panel-tui.ps1'), tuiPs1, 'utf8');
+  fs.writeFileSync(path.join(targetDir, 'kd-panel-web.bat'), webBat, 'utf8');
+  fs.writeFileSync(path.join(targetDir, 'kd-panel-web.ps1'), webPs1, 'utf8');
 }
 
 function toBooleanFlag(value) {
@@ -405,6 +432,7 @@ function ensureRuntimeFiles(krackDir) {
   const eventsFile = path.join(runtimeDir, 'events.jsonl');
   const emitterFile = path.join(runtimeDir, 'emit-event.js');
   const tuiFile = path.join(runtimeDir, 'pixel-tui.js');
+  const webFile = path.join(runtimeDir, 'pixel-web.js');
 
   if (!fs.existsSync(schemaFile)) {
     const schema = `# KD Observer Event Schema
@@ -466,6 +494,39 @@ if (data.length === 0) console.log('No events yet.');
 for (const line of data) console.log(line);
 `;
       fs.writeFileSync(tuiFile, fallbackTui, 'utf8');
+    }
+  }
+
+  if (!fs.existsSync(webFile)) {
+    const bundledWeb = path.join(__dirname, '..', 'templates', '.kracked', 'runtime', 'pixel-web.js');
+    if (fs.existsSync(bundledWeb)) {
+      fs.copyFileSync(bundledWeb, webFile);
+    } else {
+      const fallbackWeb = `#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+const http = require('http');
+const runtimeDir = fs.existsSync(path.join(process.cwd(), '.kracked', 'runtime')) ? path.join(process.cwd(), '.kracked', 'runtime') : __dirname;
+const eventsPath = path.join(runtimeDir, 'events.jsonl');
+fs.mkdirSync(runtimeDir, { recursive: true });
+if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
+const args = process.argv.slice(2);
+const portIndex = args.indexOf('--port');
+const port = Number.parseInt(portIndex >= 0 ? args[portIndex + 1] : '', 10) || 4892;
+http.createServer((req, res) => {
+  if ((req.url || '/') === '/api/state') {
+    const lines = fs.readFileSync(eventsPath, 'utf8').split(/\\r?\\n/).filter(Boolean).slice(-60);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ total_events: lines.length, recent: lines }));
+    return;
+  }
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end('<h1>KD Pixel Web Fallback</h1><p>Open <code>/api/state</code> for data.</p>');
+}).listen(port, () => {
+  process.stdout.write('[KD] Pixel web fallback running on http://localhost:' + port + '\\n');
+});
+`;
+      fs.writeFileSync(webFile, fallbackWeb, 'utf8');
     }
   }
 }
@@ -644,10 +705,10 @@ async function install(args) {
   writePanelHelperScripts(targetDir);
   if (fs.existsSync(panelSrc)) {
     copyDirRecursive(panelSrc, panelDest);
-    showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install + kd-panel-tui scripts created');
+    showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install + kd-panel-tui + kd-panel-web scripts created');
   } else {
     showWarning('Native panel source not found; skipping panel scaffolding');
-    showSuccess('kd-panel-tui scripts still created for terminal observer');
+    showSuccess('kd-panel-tui + kd-panel-web scripts still created for Antigravity observer');
   }
 
   applyAgentRosterToTemplates(krackDir, outputDir, mainAgentName, roster, { mutateOutput: !wasInstalled });
@@ -786,7 +847,7 @@ ${selectedTools.map((t) => `  - ${t}`).join('\n')}
   } else {
     showInfo('Native panel skipped. Use kd-panel-install.bat or kd-panel-install.ps1 anytime');
   }
-  showInfo('Terminal observer ready: kd-panel-tui.bat or kd-panel-tui.ps1');
+  showInfo('Observer ready: kd-panel-tui.bat / kd-panel-tui.ps1 / kd-panel-web.bat / kd-panel-web.ps1');
 
   showSuccess('Configuration saved');
 

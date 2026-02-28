@@ -1,17 +1,15 @@
 /**
- * Display Utilities for Kracked_Skills Agent CLI
- * TUI colors, boxes, progress bars, banners
+ * Display utilities for Kracked_Skills Agent CLI.
+ * Theme: cyberpunk green terminal.
  */
 
-// ANSI Color codes
 const colors = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
   dim: '\x1b[2m',
-  italic: '\x1b[3m',
   underline: '\x1b[4m',
 
-  // Foreground
+  black: '\x1b[30m',
   red: '\x1b[31m',
   green: '\x1b[32m',
   yellow: '\x1b[33m',
@@ -21,7 +19,6 @@ const colors = {
   white: '\x1b[37m',
   gray: '\x1b[90m',
 
-  // Bright
   brightRed: '\x1b[91m',
   brightGreen: '\x1b[92m',
   brightYellow: '\x1b[93m',
@@ -30,79 +27,81 @@ const colors = {
   brightCyan: '\x1b[96m',
   brightWhite: '\x1b[97m',
 
-  // Background
-  bgBlue: '\x1b[44m',
-  bgMagenta: '\x1b[45m',
-  bgCyan: '\x1b[46m',
+  bgBlack: '\x1b[40m',
 };
 
+const supportsColor = process.stdout.isTTY && !process.env.NO_COLOR;
+
 function c(color, text) {
+  if (!supportsColor || !colors[color]) return String(text);
   return `${colors[color]}${text}${colors.reset}`;
 }
 
+function stripAnsi(str) {
+  return String(str).replace(/\x1b\[[0-9;]*m/g, '');
+}
+
 function showBanner() {
+  const frame = '  +---------------------------------------------------------+';
   console.log('');
-  console.log(c('brightCyan', '  ╔═══════════════════════════════════════════════════╗'));
-  console.log(c('brightCyan', '  ║') + c('brightYellow', '   ⚡ KRACKED_SKILLS AGENT (KD)                   ') + c('brightCyan', '║'));
-  console.log(c('brightCyan', '  ║') + c('white',        '   AI Multi-Agent System for Dev Professionals     ') + c('brightCyan', '║'));
-  console.log(c('brightCyan', '  ║') + c('gray',         '   by KRACKEDDEVS — KD finishes what it starts.    ') + c('brightCyan', '║'));
-  console.log(c('brightCyan', '  ╚═══════════════════════════════════════════════════╝'));
+  console.log(c('brightGreen', frame));
+  console.log(c('brightGreen', '  |') + c('brightGreen', '  KRACKED_SKILLS AGENT (KD)                                ') + c('brightGreen', '|'));
+  console.log(c('brightGreen', '  |') + c('green',       '  AI Multi-Agent System for Dev Professionals              ') + c('brightGreen', '|'));
+  console.log(c('brightGreen', '  |') + c('gray',        '  CYBERPUNK MODE ENABLED - KD FINISHES WHAT IT STARTS     ') + c('brightGreen', '|'));
+  console.log(c('brightGreen', frame));
   console.log('');
 }
 
 function showSuccess(message) {
-  console.log(`  ${c('green', '✅')} ${message}`);
+  console.log(`  ${c('brightGreen', '[OK]')} ${message}`);
 }
 
 function showError(message) {
-  console.log(`  ${c('red', '❌')} ${message}`);
+  console.log(`  ${c('brightRed', '[ERR]')} ${message}`);
 }
 
 function showWarning(message) {
-  console.log(`  ${c('yellow', '⚠️')}  ${message}`);
+  console.log(`  ${c('brightYellow', '[WARN]')} ${message}`);
 }
 
 function showInfo(message) {
-  console.log(`  ${c('cyan', 'ℹ️')}  ${message}`);
+  console.log(`  ${c('green', '[INFO]')} ${message}`);
 }
 
 function showStep(step, total, message) {
   const progress = `[${step}/${total}]`;
-  console.log(`  ${c('brightMagenta', progress)} ${message}`);
+  console.log(`  ${c('brightGreen', progress)} ${message}`);
 }
 
 function showProgressBar(current, total, label = '') {
   const width = 30;
   const filled = Math.round((current / total) * width);
-  const empty = width - filled;
-  const bar = '█'.repeat(filled) + '░'.repeat(empty);
+  const empty = Math.max(0, width - filled);
+  const bar = `${'#'.repeat(filled)}${'.'.repeat(empty)}`;
   const percent = Math.round((current / total) * 100);
-  console.log(`  ${c('cyan', bar)} ${c('white', `${percent}%`)} ${c('gray', label)}`);
+  console.log(`  ${c('brightGreen', bar)} ${c('white', `${percent}%`)} ${c('gray', label)}`);
 }
 
 function showBox(title, lines) {
-  const maxLen = Math.max(title.length, ...lines.map(l => stripAnsi(l).length));
+  const maxLen = Math.max(title.length, ...lines.map((line) => stripAnsi(line).length));
   const width = maxLen + 4;
-  const pad = (str) => {
-    const plainLen = stripAnsi(str).length;
-    return str + ' '.repeat(Math.max(0, width - 2 - plainLen));
+  const pad = (line) => {
+    const text = String(line);
+    const plainLength = stripAnsi(text).length;
+    return `${text}${' '.repeat(Math.max(0, width - 2 - plainLength))}`;
   };
 
-  console.log(`  ${c('cyan', '┌' + '─'.repeat(width) + '┐')}`);
-  console.log(`  ${c('cyan', '│')} ${c('bold', pad(title))}${c('cyan', '│')}`);
-  console.log(`  ${c('cyan', '├' + '─'.repeat(width) + '┤')}`);
-  lines.forEach(line => {
-    console.log(`  ${c('cyan', '│')} ${pad(line)}${c('cyan', '│')}`);
+  console.log(`  ${c('brightGreen', `+${'-'.repeat(width)}+`)}`);
+  console.log(`  ${c('brightGreen', '|')} ${c('bold', pad(title))}${c('brightGreen', '|')}`);
+  console.log(`  ${c('brightGreen', `+${'-'.repeat(width)}+`)}`);
+  lines.forEach((line) => {
+    console.log(`  ${c('brightGreen', '|')} ${pad(line)}${c('brightGreen', '|')}`);
   });
-  console.log(`  ${c('cyan', '└' + '─'.repeat(width) + '┘')}`);
-}
-
-function stripAnsi(str) {
-  return str.replace(/\x1b\[[0-9;]*m/g, '');
+  console.log(`  ${c('brightGreen', `+${'-'.repeat(width)}+`)}`);
 }
 
 function showDivider() {
-  console.log(c('gray', '  ─────────────────────────────────────────────'));
+  console.log(c('green', '  -------------------------------------------------------------'));
 }
 
 function showXPDisplay(data) {
@@ -122,16 +121,16 @@ function showXPDisplay(data) {
   const nextLevelXP = levelThresholds[level] || 300;
   const title = levelTitles[level] || 'Novice';
 
-  showBox(`AGEN: ${data.agent || 'AMAD'}`, [
-    `Level ${level} — ${title}`,
+  showBox(`AGENT: ${data.agent || 'AMAD'}`, [
+    `Level ${level} - ${title}`,
     `XP: ${xp} / ${nextLevelXP}`,
     '',
     `${c('gray', 'Stats:')}`,
-    `  ✦ Projek Selesai:    ${data.stats?.projects_completed || 0}`,
-    `  ✦ PRD Ditulis:       ${data.stats?.prd_written || 0}`,
-    `  ✦ Isu Sec. Betul:    ${data.stats?.security_fixes || 0}`,
-    `  ✦ Stories Implement: ${data.stats?.stories_implemented || 0}`,
-    `  ✦ Domain Baharu:     ${data.stats?.domains_explored || 0}`,
+    `  * Projects Completed: ${data.stats?.projects_completed || 0}`,
+    `  * PRD Written:        ${data.stats?.prd_written || 0}`,
+    `  * Security Fixes:     ${data.stats?.security_fixes || 0}`,
+    `  * Stories Delivered:  ${data.stats?.stories_implemented || 0}`,
+    `  * Domains Explored:   ${data.stats?.domains_explored || 0}`,
   ]);
 }
 

@@ -8,6 +8,7 @@
  *   npx kracked-skills-agent update           # Update existing installation
  *   npx kracked-skills-agent uninstall        # Remove KD from project
  *   npx kracked-skills-agent stats            # Show XP & level stats
+ *   npx kracked-skills-agent observe          # Open terminal Pixel observer (TUI)
  *   npx kracked-skills-agent help             # Show help
  */
 
@@ -16,6 +17,7 @@ const { install } = require('../src/installer');
 const { update } = require('../src/updater');
 const { uninstall } = require('../src/uninstaller');
 const { showStats } = require('../src/stats');
+const { runObserver } = require('../src/observer');
 const { showHelp } = require('../src/help');
 const { showBanner } = require('../src/display');
 
@@ -40,6 +42,11 @@ async function main() {
 
     case 'stats':
       await showStats(args);
+      break;
+
+    case 'observe':
+    case 'panel-tui':
+      await runObserver(args);
       break;
 
     case 'help':

@@ -152,8 +152,28 @@ code --install-extension $vsix.FullName
 Write-Host "[KD] Native panel installed successfully."
 `;
 
+  const tuiBat = `@echo off
+setlocal
+set TUI_FILE=%~dp0.kracked\\runtime\\pixel-tui.js
+if not exist "%TUI_FILE%" (
+  echo [KD] TUI script not found: %TUI_FILE%
+  exit /b 1
+)
+node "%TUI_FILE%" %*
+`;
+
+  const tuiPs1 = `$ErrorActionPreference = "Stop"
+$tuiFile = Join-Path $PSScriptRoot ".kracked/runtime/pixel-tui.js"
+if (-not (Test-Path $tuiFile)) {
+  Write-Error "[KD] TUI script not found: $tuiFile"
+}
+node $tuiFile @args
+`;
+
   fs.writeFileSync(path.join(targetDir, 'kd-panel-install.bat'), batContent, 'utf8');
   fs.writeFileSync(path.join(targetDir, 'kd-panel-install.ps1'), ps1Content, 'utf8');
+  fs.writeFileSync(path.join(targetDir, 'kd-panel-tui.bat'), tuiBat, 'utf8');
+  fs.writeFileSync(path.join(targetDir, 'kd-panel-tui.ps1'), tuiPs1, 'utf8');
 }
 
 function toBooleanFlag(value) {
@@ -384,6 +404,7 @@ function ensureRuntimeFiles(krackDir) {
   const schemaFile = path.join(runtimeDir, 'SCHEMA.md');
   const eventsFile = path.join(runtimeDir, 'events.jsonl');
   const emitterFile = path.join(runtimeDir, 'emit-event.js');
+  const tuiFile = path.join(runtimeDir, 'pixel-tui.js');
 
   if (!fs.existsSync(schemaFile)) {
     const schema = `# KD Observer Event Schema
@@ -425,6 +446,27 @@ fs.appendFileSync(eventsPath, JSON.stringify(event)+'\\n', 'utf8');
 process.stdout.write('[KD] Event appended\\n');
 `;
     fs.writeFileSync(emitterFile, emitter, 'utf8');
+  }
+
+  if (!fs.existsSync(tuiFile)) {
+    const bundledTui = path.join(__dirname, '..', 'templates', '.kracked', 'runtime', 'pixel-tui.js');
+    if (fs.existsSync(bundledTui)) {
+      fs.copyFileSync(bundledTui, tuiFile);
+    } else {
+      const fallbackTui = `#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+const runtimeDir = fs.existsSync(path.join(process.cwd(), '.kracked', 'runtime')) ? path.join(process.cwd(), '.kracked', 'runtime') : __dirname;
+const eventsPath = path.join(runtimeDir, 'events.jsonl');
+fs.mkdirSync(runtimeDir, { recursive: true });
+if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
+const data = fs.readFileSync(eventsPath, 'utf8').split(/\\r?\\n/).filter(Boolean).slice(-20);
+console.log('[KD] pixel-tui fallback');
+if (data.length === 0) console.log('No events yet.');
+for (const line of data) console.log(line);
+`;
+      fs.writeFileSync(tuiFile, fallbackTui, 'utf8');
+    }
   }
 }
 
@@ -486,7 +528,7 @@ async function install(args) {
     console.log(`    ${c('cyan', '2.')} Bahasa Melayu (MS)`);
     console.log(`    ${c('cyan', '3.')} Custom (type your language)`);
     console.log('');
-    const langAnswer = await prompt(`  ${c('brightCyan', '->')} Choose [1/2/3]: `);
+    const langAnswer = await prompt(`  ${c('brightGreen', '->')} Choose [1/2/3]: `);
 
     switch (langAnswer) {
       case '1':
@@ -496,7 +538,7 @@ async function install(args) {
         language = 'MS';
         break;
       case '3':
-        language = await prompt(`  ${c('brightCyan', '->')} Enter language name: `);
+        language = await prompt(`  ${c('brightGreen', '->')} Enter language name: `);
         break;
       default:
         language = 'EN';
@@ -519,7 +561,7 @@ async function install(args) {
     });
     console.log(`    ${c('cyan', 'A.')} All tools`);
     console.log('');
-    const toolAnswer = await prompt(`  ${c('brightCyan', '->')} Choose (comma-separated, e.g. 1,2,3 or A): `);
+    const toolAnswer = await prompt(`  ${c('brightGreen', '->')} Choose (comma-separated, e.g. 1,2,3 or A): `);
 
     if (toolAnswer.toLowerCase() === 'a') {
       selectedTools = [...SUPPORTED_IDES];
@@ -544,14 +586,14 @@ async function install(args) {
 
   let projectName = args.name;
   if (!projectName && !args.yes) {
-    projectName = await prompt(`  ${c('brightCyan', '->')} Project name (default: ${path.basename(targetDir)}): `);
+    projectName = await prompt(`  ${c('brightGreen', '->')} Project name (default: ${path.basename(targetDir)}): `);
   }
   if (!projectName) projectName = path.basename(targetDir);
   showSuccess(`Project: ${projectName}`);
 
   let mainAgentName = args.agent;
   if (!mainAgentName && !args.yes) {
-    mainAgentName = await prompt(`  ${c('brightCyan', '->')} Main agent name (default: ${DEFAULT_AGENT_NAMES.main}): `);
+    mainAgentName = await prompt(`  ${c('brightGreen', '->')} Main agent name (default: ${DEFAULT_AGENT_NAMES.main}): `);
   }
   if (!mainAgentName) mainAgentName = DEFAULT_AGENT_NAMES.main;
   showSuccess(`Main Agent: ${mainAgentName}`);
@@ -562,7 +604,7 @@ async function install(args) {
   let installPanelNow = toBooleanFlag(args.panel);
   if (installPanelNow == null && !args.yes) {
     const panelAnswer = await prompt(
-      `  ${c('brightCyan', '->')} Install native Pixel panel now? (requires VS Code CLI) (y/N): `
+      `  ${c('brightGreen', '->')} Install native Pixel panel now? (requires VS Code CLI) (y/N): `
     );
     installPanelNow = panelAnswer.toLowerCase() === 'y' || panelAnswer.toLowerCase() === 'yes';
   }
@@ -599,12 +641,13 @@ async function install(args) {
 
   const panelSrc = path.join(__dirname, '..', 'ide', 'vscode-kd-pixel-panel');
   const panelDest = path.join(krackDir, 'tools', 'vscode-kd-pixel-panel');
+  writePanelHelperScripts(targetDir);
   if (fs.existsSync(panelSrc)) {
     copyDirRecursive(panelSrc, panelDest);
-    writePanelHelperScripts(targetDir);
-    showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install scripts created');
+    showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install + kd-panel-tui scripts created');
   } else {
     showWarning('Native panel source not found; skipping panel scaffolding');
+    showSuccess('kd-panel-tui scripts still created for terminal observer');
   }
 
   applyAgentRosterToTemplates(krackDir, outputDir, mainAgentName, roster, { mutateOutput: !wasInstalled });
@@ -743,6 +786,7 @@ ${selectedTools.map((t) => `  - ${t}`).join('\n')}
   } else {
     showInfo('Native panel skipped. Use kd-panel-install.bat or kd-panel-install.ps1 anytime');
   }
+  showInfo('Terminal observer ready: kd-panel-tui.bat or kd-panel-tui.ps1');
 
   showSuccess('Configuration saved');
 

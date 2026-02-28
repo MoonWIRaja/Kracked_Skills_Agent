@@ -17,6 +17,7 @@ function showHelp() {
   console.log(`    ${c('cyan', 'update')}      Update existing KD installation`);
   console.log(`    ${c('cyan', 'uninstall')}   Remove KD from project`);
   console.log(`    ${c('cyan', 'stats')}       Show XP, level, and agent stats`);
+  console.log(`    ${c('cyan', 'observe')}     Open KD Pixel observer in terminal (TUI)`);
   console.log(`    ${c('cyan', 'help')}        Show this help message`);
   console.log(`    ${c('cyan', 'version')}     Show version`);
   console.log('');
@@ -31,6 +32,9 @@ function showHelp() {
   console.log(`    ${c('yellow', '-a, --agent')}     ${c('gray', '<name>')}    Main agent display name (default: Amad)`);
   console.log(`    ${c('yellow', '--panel')}                    Auto-install native Pixel panel after install`);
   console.log(`    ${c('yellow', '--no-panel')}                 Skip native panel auto-install`);
+  console.log(`    ${c('yellow', '--interval')}                 Observer refresh interval in ms`);
+  console.log(`    ${c('yellow', '--max-events')}               Observer max visible recent events`);
+  console.log(`    ${c('yellow', '--max-history')}              Observer max parsed event history`);
   console.log(`    ${c('yellow', '-y, --yes')}                  Non-interactive mode`);
   console.log('');
   showDivider();
@@ -51,6 +55,9 @@ function showHelp() {
   console.log('');
   console.log(`    ${c('gray', '# Show stats')}`);
   console.log(`    ${c('cyan', 'npx kracked-skills-agent stats')}`);
+  console.log('');
+  console.log(`    ${c('gray', '# Open terminal observer (Antigravity-friendly)')}`);
+  console.log(`    ${c('cyan', 'npx kracked-skills-agent observe --interval 800 --max-events 15')}`);
   console.log('');
   showDivider();
   console.log('');

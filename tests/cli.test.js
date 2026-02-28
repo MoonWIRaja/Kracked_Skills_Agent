@@ -10,4 +10,5 @@ test('cli help command prints usage', () => {
 
   assert.match(output, /USAGE:/);
   assert.match(output, /COMMANDS:/);
+  assert.match(output, /observe/);
 });

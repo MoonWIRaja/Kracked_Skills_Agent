@@ -16,6 +16,7 @@ Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
 <a href="#-quick-start">Quick Start</a> •
 <a href="#-after-install-what-to-run">After Install</a> •
 <a href="#-pixel-observer-native-panel-vs-code-family">Pixel Native Panel</a> •
+<a href="#-pixel-observer-terminal-tui-antigravity-friendly">Pixel Terminal TUI</a> •
 <a href="#-commands">Commands</a> •
 <a href="#-supported-tools--adapters">Supported Tools</a>
 </p>
@@ -48,6 +49,8 @@ npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --language MS --tools a
 3. Project name
 4. Main Agent name
 5. Install native Pixel panel now? (yes/no)
+
+Installer UI now uses a cyberpunk terminal theme (black/green style).
 
 ---
 
@@ -128,14 +131,39 @@ node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent -
 
 Note:
 1. Native panel UI is only for VS Code-family IDE extension hosts.
-2. For Antigravity, use Pixel Observer web UI (`frontend` + `backend`) while sharing the same events stream.
+2. For Antigravity, use Pixel Observer web UI (`frontend` + `backend`) or terminal TUI (`kd-panel-tui.*`) with the same events stream.
+
+---
+
+## Pixel Observer Terminal TUI (Antigravity-Friendly)
+
+KD now includes a terminal observer panel for any IDE, including Antigravity.
+
+Run from installed project root:
+
+```bash
+kd-panel-tui.bat
+# or
+powershell -ExecutionPolicy Bypass -File .\kd-panel-tui.ps1
+```
+
+Or via CLI command:
+
+```bash
+npx kracked-skills-agent observe --interval 800 --max-events 15
+```
+
+Controls:
+1. Press `q` to quit.
+2. Reads `.kracked/runtime/events.jsonl` in real time.
+3. Theme: cyberpunk black-green terminal.
 
 ---
 
 ## Pixel Observer (How It Works)
 
 1. KD adapters share one observer event stream:
-2. Native panel and web UI both read the same stream.
+2. Native panel, terminal TUI, and web UI all read the same stream.
 3. `.kracked/runtime/events.jsonl`
 4. Schema file:
 5. `.kracked/runtime/SCHEMA.md`
@@ -156,6 +184,7 @@ flowchart LR
   B --> C[emit-event.js]
   C --> D[.kracked/runtime/events.jsonl]
   D --> E[VS Code Native Panel]
+  D --> H[Terminal TUI]
   D --> F[Backend API]
   F --> G[Web Pixel Observer UI]
 ```
@@ -195,6 +224,9 @@ npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --agent Qih --tools ant
 | Quality | `/kd-code-review`, `/kd-test`, `/kd-security-audit` | QA and security |
 | Delivery | `/kd-deploy`, `/kd-release` | Deploy and release |
 
+CLI utility command:
+- `npx kracked-skills-agent observe` — open terminal Pixel TUI observer.
+
 ---
 
 ## Supported Tools & Adapters
@@ -223,6 +255,7 @@ npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --agent Qih --tools ant
 │   ├── SCHEMA.md              # observer event schema
 │   ├── events.jsonl           # shared event stream
 │   └── emit-event.js          # event appender
+│   └── pixel-tui.js           # terminal observer panel
 ├── security/
 │   └── xp.json                # main-agent XP tracking
 └── config/
@@ -232,6 +265,10 @@ npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --agent Qih --tools ant
 
 KD_output/
 └── status/status.md
+
+Project root helper scripts:
+- `kd-panel-install.bat` / `kd-panel-install.ps1`
+- `kd-panel-tui.bat` / `kd-panel-tui.ps1`
 ```
 
 ---

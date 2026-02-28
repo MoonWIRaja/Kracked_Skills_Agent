@@ -11,6 +11,9 @@ function parseArgs(argv) {
     name: null,            // project name
     agent: null,           // main agent display name
     panel: null,           // install native panel now: true/false/null
+    interval: null,        // observer refresh interval
+    maxEvents: null,       // observer max rows
+    maxHistory: null,      // observer max parsed history
     yes: false,            // non-interactive mode
   };
 
@@ -67,6 +70,18 @@ function parseArgs(argv) {
       case '--yes':
       case '-y':
         result.yes = true;
+        break;
+
+      case '--interval':
+        result.interval = argv[++i] || null;
+        break;
+
+      case '--max-events':
+        result.maxEvents = argv[++i] || null;
+        break;
+
+      case '--max-history':
+        result.maxHistory = argv[++i] || null;
         break;
 
       case '--help':

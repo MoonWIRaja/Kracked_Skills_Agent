@@ -4,7 +4,7 @@ const path = require('path');
 
 const MAX_EVENTS = 600;
 const VIEW_ID = 'kdPixel.panelView';
-const LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v2';
+const LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v3';
 const AGENT_ID_MAP_KEY = 'kdPixel.agentIdByKey';
 const NEXT_AGENT_ID_KEY = 'kdPixel.nextAgentNumericId';
 const AGENT_SEATS_KEY = 'kdPixel.agentSeats';

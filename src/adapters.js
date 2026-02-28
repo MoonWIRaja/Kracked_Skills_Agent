@@ -219,6 +219,9 @@ Also load observer schema from: {project-root}/.kracked/runtime/SCHEMA.md
 
 After completing the response, log one observer event using:
 \`node {project-root}/.kracked/runtime/emit-event.js --source ${ideType} --agent-id main-agent --agent-name "<agent_name>" --role "Master Agent" --action typing --task ${cmd.name} --message "Workflow completed"\`
+
+If Main Agent delegates to professional agent(s), include target on the same log:
+\`node {project-root}/.kracked/runtime/emit-event.js --source ${ideType} --agent-id main-agent --agent-name "<agent_name>" --role "Master Agent" --action typing --task ${cmd.name} --target-agent-id "<role>-agent" --message "Delegating subtask"\`
 `;
 }
 
@@ -330,6 +333,9 @@ This skill provides a complete AI multi-agent development system with:
 
 For every completed workflow response, emit one event:
 \`node {project-root}/.kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name "<agent_name>" --role "Master Agent" --action typing --task "<kd-command>"\`
+
+If delegating to specialist role, include:
+\`--target-agent-id "<role>-agent"\`
 `;
 
   fs.writeFileSync(path.join(agSkillDir, 'SKILL.md'), skillContent, 'utf8');

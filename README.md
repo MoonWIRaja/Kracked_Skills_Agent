@@ -93,6 +93,7 @@ You can also:
 1. Edit office layout (drag desks, reading zone, waiting zone)
 2. Assign seats (click agent, then click desk)
 3. Spawn delegation sub-agent activity when event has `target_agent_id`
+4. Auto-synthesize professional agents from KD task command (supports command args like `kd-dev-story story-1`)
 
 Install extension from project root:
 
@@ -173,6 +174,9 @@ Manual event sample:
 
 ```bash
 node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-prd --message "PRD ready"
+
+# explicit delegation sample
+node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-dev-story --target-agent-id engineer-agent --message "Delegating implementation"
 ```
 
 ## Core System Behavior

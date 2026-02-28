@@ -18,8 +18,14 @@ test('antigravity adapter creates workflow files and skill directory', () => {
     assert.ok(fs.existsSync(path.join(tempDir, '.agents', 'skills', 'kracked-skills-agent', 'SKILL.md')));
 
     const workflow = fs.readFileSync(path.join(tempDir, '.agent', 'workflows', 'kd.md'), 'utf8');
+    const skill = fs.readFileSync(
+      path.join(tempDir, '.agents', 'skills', 'kracked-skills-agent', 'SKILL.md'),
+      'utf8'
+    );
     assert.match(workflow, /runtime\/SCHEMA\.md/);
     assert.match(workflow, /runtime\/emit-event\.js/);
+    assert.match(workflow, /target-agent-id/);
+    assert.match(skill, /target-agent-id/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -50,6 +56,7 @@ test('codex adapter creates instructions and command files', () => {
     assert.match(instructions, /Matnep/);
     assert.match(commandMarkdown, /runtime\/SCHEMA\.md/);
     assert.match(commandMarkdown, /runtime\/emit-event\.js/);
+    assert.match(commandMarkdown, /target-agent-id/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

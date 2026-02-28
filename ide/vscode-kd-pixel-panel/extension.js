@@ -10,6 +10,50 @@ const NEXT_AGENT_ID_KEY = 'kdPixel.nextAgentNumericId';
 const AGENT_SEATS_KEY = 'kdPixel.agentSeats';
 const SOUND_ENABLED_KEY = 'kdPixel.soundEnabled';
 
+const ROLE_TITLES = {
+  analyst: 'Analyst',
+  pm: 'Product Manager',
+  architect: 'Architect',
+  'tech-lead': 'Tech Lead',
+  engineer: 'Engineer',
+  qa: 'QA',
+  security: 'Security',
+  devops: 'DevOps',
+  'release-manager': 'Release Manager',
+};
+
+const TASK_DELEGATION_MAP = {
+  'kd-analyze': ['analyst'],
+  'kd-brainstorm': ['analyst', 'pm'],
+  'kd-prd': ['pm'],
+  'kd-arch': ['architect', 'security'],
+  'kd-story': ['tech-lead'],
+  'kd-dev-story': ['engineer'],
+  'kd-code-review': ['qa', 'security'],
+  'kd-deploy': ['devops'],
+  'kd-release': ['release-manager'],
+  'kd-api-design': ['architect'],
+  'kd-db-schema': ['architect'],
+  'kd-test': ['qa'],
+  'kd-security-audit': ['security'],
+  'kd-refactor': ['tech-lead', 'engineer'],
+  'kd-sprint-planning': ['pm', 'tech-lead'],
+  'kd-sprint-review': ['pm', 'qa'],
+  'kd-validate': ['qa'],
+};
+
+const ROLE_HINTS = {
+  analyst: ['analyst', 'analysis', 'discover', 'research', 'stakeholder'],
+  pm: ['pm', 'product manager', 'prd', 'roadmap', 'backlog'],
+  architect: ['architect', 'architecture', 'system design', 'api design', 'db schema'],
+  'tech-lead': ['tech lead', 'tl', 'lead', 'story breakdown', 'refactor'],
+  engineer: ['engineer', 'developer', 'dev story', 'implement', 'coding', 'code'],
+  qa: ['qa', 'quality', 'testing', 'test'],
+  security: ['security', 'audit', 'owasp', 'vulnerability'],
+  devops: ['devops', 'deploy', 'deployment', 'ci/cd', 'pipeline'],
+  'release-manager': ['release manager', 'release', 'changelog'],
+};
+
 let provider = null;
 
 function activate(context) {
@@ -222,7 +266,7 @@ class KDPanelViewProvider {
     for (const id of seenNow) {
       if (!this.activeNumericIds.has(id)) {
         this.activeNumericIds.add(id);
-        webview.postMessage({ type: 'agentCreated', id, folderName: folderNames[id] || undefined });
+        webview.postMessage({ type: 'agentCreated', id, folderName: snapshot.folderNames[id] || undefined });
       }
     }
 
@@ -277,7 +321,9 @@ class KDPanelViewProvider {
     const root = this.getWorkspaceRoot();
     const eventsPath = this.getEventsPath(root);
     const events = readEvents(eventsPath);
-    const latest = getLatestEventsByAgent(events);
+    const roster = loadAgentRoster(root);
+    const augmentedEvents = synthesizeDelegationEvents(events, roster);
+    const latest = getLatestEventsByAgent(augmentedEvents);
     const ids = [];
     const folderNames = {};
     const agentMeta = {};
@@ -430,6 +476,260 @@ function getLatestEventsByAgent(events) {
     if (bMain && !aMain) return 1;
     return eventTime(b) - eventTime(a);
   });
+}
+
+function loadAgentRoster(root) {
+  const defaults = {
+    mainName: 'Main Agent',
+    byRole: {
+      analyst: 'Analyst',
+      pm: 'PM',
+      architect: 'Architect',
+      'tech-lead': 'Tech Lead',
+      engineer: 'Engineer',
+      qa: 'QA',
+      security: 'Security',
+      devops: 'DevOps',
+      'release-manager': 'Release Manager',
+    },
+  };
+
+  if (!root) return defaults;
+  const rosterPath = path.join(root, '.kracked', 'config', 'agents.json');
+  if (!fs.existsSync(rosterPath)) return defaults;
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(rosterPath, 'utf8'));
+    const byRole = { ...defaults.byRole };
+    if (parsed.byRole && typeof parsed.byRole === 'object') {
+      for (const [role, name] of Object.entries(parsed.byRole)) {
+        if (typeof name === 'string' && name.trim()) {
+          byRole[role] = name.trim();
+        }
+      }
+    }
+
+    const mainName = parsed.main && typeof parsed.main === 'object' && typeof parsed.main.name === 'string'
+      ? parsed.main.name.trim() || defaults.mainName
+      : defaults.mainName;
+
+    return { mainName, byRole };
+  } catch {
+    return defaults;
+  }
+}
+
+function normalizeTask(taskRaw) {
+  const raw = String(taskRaw || '').trim().toLowerCase();
+  if (!raw) return '';
+
+  // keep first token only so "kd-dev-story story-1" still maps.
+  let token = raw.split(/\s+/)[0];
+  token = token.replace(/^\/+/, '');
+  token = token.replace(/\.md$/, '');
+  token = token.replace(/^kd_/, 'kd-');
+  return token;
+}
+
+function taskCandidates(taskRaw) {
+  const raw = String(taskRaw || '').trim().toLowerCase();
+  if (!raw) return [];
+
+  const compact = raw
+    .replace(/\.md/g, ' ')
+    .replace(/[(){}[\],]/g, ' ')
+    .trim();
+
+  const tokens = compact.split(/\s+/).filter(Boolean).map((t) => t.replace(/^\/+/, '').replace(/^kd_/, 'kd-'));
+  const first = normalizeTask(raw);
+  const out = [];
+
+  if (first) out.push(first);
+  for (const token of tokens) {
+    if (!out.includes(token)) out.push(token);
+  }
+
+  return out;
+}
+
+function roleToAgentId(role) {
+  return `${role}-agent`;
+}
+
+function roleTitle(role) {
+  return ROLE_TITLES[role] || 'Professional Agent';
+}
+
+function rolesForTask(taskRaw) {
+  const candidates = taskCandidates(taskRaw);
+  if (candidates.length === 0) return [];
+
+  const roles = new Set();
+
+  for (const task of candidates) {
+    if (TASK_DELEGATION_MAP[task]) {
+      for (const role of TASK_DELEGATION_MAP[task]) roles.add(role);
+      continue;
+    }
+
+    if (task.startsWith('kd-role-')) {
+      const role = task.slice('kd-role-'.length);
+      if (ROLE_TITLES[role]) roles.add(role);
+      continue;
+    }
+
+    // Fuzzy match for strings like "workflows/KD-dev-story.md".
+    for (const [key, mappedRoles] of Object.entries(TASK_DELEGATION_MAP)) {
+      if (task.includes(key)) {
+        for (const role of mappedRoles) roles.add(role);
+      }
+    }
+  }
+
+  return [...roles];
+}
+
+function rolesFromText(textRaw) {
+  const text = String(textRaw || '').trim().toLowerCase();
+  if (!text) return [];
+
+  const roles = new Set();
+  for (const [role, hints] of Object.entries(ROLE_HINTS)) {
+    if (hints.some((hint) => text.includes(hint))) {
+      roles.add(role);
+    }
+  }
+  return [...roles];
+}
+
+function rolesFromTarget(targetRaw, roster) {
+  const target = String(targetRaw || '').trim().toLowerCase();
+  if (!target) return [];
+
+  const segments = target
+    .split(/[,\n;|]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (segments.length === 0) segments.push(target);
+
+  const roles = new Set();
+  for (const segment of segments) {
+    for (const role of Object.keys(ROLE_TITLES)) {
+      if (segment === role || segment === `${role}-agent`) roles.add(role);
+    }
+
+    for (const [role, name] of Object.entries(roster.byRole || {})) {
+      if (String(name || '').trim().toLowerCase() === segment) roles.add(role);
+    }
+
+    for (const role of rolesFromText(segment)) {
+      if (ROLE_TITLES[role]) roles.add(role);
+    }
+  }
+
+  return [...roles];
+}
+
+function inferDelegatedAction(mainActionRaw, role) {
+  const mainAction = String(mainActionRaw || '').toLowerCase();
+  if (mainAction.includes('wait') || mainAction.includes('idle')) return 'waiting';
+  if (role === 'engineer') return 'typing';
+  if (role === 'qa' || role === 'security' || role === 'analyst' || role === 'architect') return 'reading';
+  if (role === 'devops') return 'running';
+  return 'working';
+}
+
+function hasRecentActivityForRole(events, role, rosterName, sinceTs) {
+  const id = roleToAgentId(role);
+  const since = Number.isFinite(sinceTs) ? sinceTs : 0;
+  const rosterLower = String(rosterName || '').trim().toLowerCase();
+
+  return events.some((event) => {
+    const t = eventTime(event);
+    if (t < since) return false;
+
+    const eventId = String(event.agent_id || '').trim().toLowerCase();
+    const eventName = String(event.agent_name || '').trim().toLowerCase();
+    const eventRole = String(event.role || '').trim().toLowerCase();
+
+    if (eventId === id) return true;
+    if (rosterLower && eventName === rosterLower) return true;
+    if (eventRole.includes(role.replace('-', ' ')) || eventRole.includes(role)) return true;
+    return false;
+  });
+}
+
+function synthesizeDelegationEvents(events, roster) {
+  if (!Array.isArray(events) || events.length === 0) return [];
+
+  const synthetic = [];
+  const latestMain = [...events]
+    .filter((event) => isMainEvent(event))
+    .sort((a, b) => eventTime(b) - eventTime(a))[0];
+
+  if (latestMain) {
+    const roleSet = new Set([
+      ...rolesForTask(latestMain.task),
+      ...rolesFromText(latestMain.message),
+      ...rolesFromText(latestMain.action),
+    ]);
+    let roles = [...roleSet];
+    if (roles.length === 0) {
+      const signal = `${String(latestMain.action || '')} ${String(latestMain.message || '')}`.toLowerCase();
+      if (/(delegat|consult|ask|help|assist)/.test(signal)) {
+        roles = ['analyst'];
+      }
+    }
+    const mainTs = eventTime(latestMain);
+    for (const role of roles) {
+      const name = roster.byRole[role] || roleTitle(role);
+      if (hasRecentActivityForRole(events, role, name, mainTs)) continue;
+
+      synthetic.push({
+        ts: latestMain.ts || new Date().toISOString(),
+        agent_id: roleToAgentId(role),
+        agent_name: name,
+        role: roleTitle(role),
+        action: inferDelegatedAction(latestMain.action, role),
+        source: latestMain.source || 'kd',
+        task: latestMain.task || '',
+        message: `${name} handling delegated task`,
+      });
+    }
+  }
+
+  const targetLatestByRole = new Map();
+  for (const event of events) {
+    if (!event.target_agent_id) continue;
+    const roles = rolesFromTarget(event.target_agent_id, roster);
+    if (roles.length === 0) continue;
+    for (const role of roles) {
+      const current = targetLatestByRole.get(role);
+      if (!current || eventTime(event) >= eventTime(current)) {
+        targetLatestByRole.set(role, event);
+      }
+    }
+  }
+
+  for (const [role, parentEvent] of targetLatestByRole.entries()) {
+    const name = roster.byRole[role] || roleTitle(role);
+    if (hasRecentActivityForRole(events, role, name, eventTime(parentEvent))) continue;
+
+    synthetic.push({
+      ts: parentEvent.ts || new Date().toISOString(),
+      agent_id: roleToAgentId(role),
+      agent_name: name,
+      role: roleTitle(role),
+      action: inferDelegatedAction(parentEvent.action, role),
+      source: parentEvent.source || 'kd',
+      task: parentEvent.task || '',
+      message: `${name} responding to main-agent delegation`,
+    });
+  }
+
+  if (synthetic.length === 0) return events;
+  return [...events, ...synthetic];
 }
 
 function buildEventSignature(event) {

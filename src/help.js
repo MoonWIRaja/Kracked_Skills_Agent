@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Help Display for Kracked_Skills Agent
  */
 
@@ -28,8 +28,8 @@ function showHelp() {
   console.log(`    ${c('yellow', '-l, --language')}  ${c('gray', '<lang>')}    Language: EN, MS, or custom`);
   console.log(`    ${c('yellow', '-t, --tools')}     ${c('gray', '<list>')}    IDE tools (comma-separated)`);
   console.log(`    ${c('yellow', '-n, --name')}      ${c('gray', '<name>')}    Project name`);
+  console.log(`    ${c('yellow', '-a, --agent')}     ${c('gray', '<name>')}    Main agent display name (default: Amad)`);
   console.log(`    ${c('yellow', '-y, --yes')}                  Non-interactive mode`);
-  console.log(`    ${c('yellow', '-g, --global')}               Install globally (~/.kracked/)`);
   console.log('');
   showDivider();
   console.log('');
@@ -39,7 +39,7 @@ function showHelp() {
   console.log(`    ${c('cyan', 'npx kracked-skills-agent install')}`);
   console.log('');
   console.log(`    ${c('gray', '# Non-interactive (CI/CD)')}`);
-  console.log(`    ${c('cyan', 'npx kracked-skills-agent install --yes --language MS --tools codex,cursor')}`);
+  console.log(`    ${c('cyan', 'npx kracked-skills-agent install --yes --language MS --tools codex,cursor --agent Moon')}`);
   console.log('');
   console.log(`    ${c('gray', '# Via GitHub direct')}`);
   console.log(`    ${c('cyan', 'npx github:MoonWIRaja/Kracked_Skills_Agent install')}`);
@@ -51,12 +51,13 @@ function showHelp() {
   console.log('');
   console.log(c('brightWhite', '  SUPPORTED IDE TOOLS:'));
   console.log('');
-  console.log(`    ${c('cyan', 'codex')}        → .codex/INSTRUCTIONS.md`);
-  console.log(`    ${c('cyan', 'antigravity')}   → .agent/workflows/ + .agents/skills/`);
-  console.log(`    ${c('cyan', 'cursor')}        → .cursor/commands/`);
-  console.log(`    ${c('cyan', 'opencode')}      → .opencode/agents/`);
-  console.log(`    ${c('cyan', 'kilocode')}      → .kilocode/workflows/ + .kilocodemodes`);
-  console.log(`    ${c('cyan', 'cline')}         → .clinerules/workflows/`);
+  console.log(`    ${c('cyan', 'codex')}        â†’ .codex/INSTRUCTIONS.md`);
+  console.log(`    ${c('cyan', 'antigravity')}   â†’ .agent/workflows/ + .agents/skills/`);
+  console.log(`    ${c('cyan', 'cursor')}        â†’ .cursor/commands/`);
+  console.log(`    ${c('cyan', 'opencode')}      â†’ .opencode/agents/`);
+  console.log(`    ${c('cyan', 'kilocode')}      â†’ .kilocode/workflows/ + .kilocodemodes`);
+  console.log(`    ${c('cyan', 'cline')}         â†’ .clinerules/workflows/`);
+  console.log(`    ${c('cyan', 'claude-code')}   â†’ CLAUDE.md + .claude/commands/`);
   console.log('');
 }
 

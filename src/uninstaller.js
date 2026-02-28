@@ -58,6 +58,7 @@ async function uninstall(args) {
   // Remove adapter files
   const adapterPaths = [
     '.codex/INSTRUCTIONS.md',
+    'CLAUDE.md',
     '.kilocodemodes',
   ];
 
@@ -77,6 +78,7 @@ async function uninstall(args) {
     { dir: '.opencode/agents', prefix: 'kracked' },
     { dir: '.kilocode/workflows', prefix: 'kd' },
     { dir: '.clinerules/workflows', prefix: 'kd' },
+    { dir: '.claude/commands', prefix: 'kd' },
   ];
 
   adapterDirs.forEach(({ dir, prefix }) => {

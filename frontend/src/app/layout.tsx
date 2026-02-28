@@ -1,12 +1,23 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Silkscreen, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const fontUI = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-ui",
+  display: "swap",
+});
+
+const fontArcade = Silkscreen({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-arcade",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Kracked_Skills Agent - Platform",
-  description: "AI Multi-Agent System for Software Development",
+  title: "Kracked Skills Agent - Pixel Console",
+  description: "AI multi-agent orchestration with pixel observer",
 };
 
 export default function RootLayout({
@@ -15,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} min-h-screen bg-black text-white antialiased`}>
+    <html lang="en">
+      <body className={`${fontUI.variable} ${fontArcade.variable} min-h-screen bg-[#030905] text-[#e8ffec] antialiased`}>
         {children}
       </body>
     </html>

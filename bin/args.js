@@ -9,8 +9,8 @@ function parseArgs(argv) {
     language: null,        // EN, MS, or custom
     tools: null,           // comma-separated list of IDE tools
     name: null,            // project name
+    agent: null,           // main agent display name
     yes: false,            // non-interactive mode
-    global: false,         // global install
   };
 
   let i = 0;
@@ -45,14 +45,14 @@ function parseArgs(argv) {
         result.name = argv[++i] || null;
         break;
 
+      case '--agent':
+      case '-a':
+        result.agent = argv[++i] || null;
+        break;
+
       case '--yes':
       case '-y':
         result.yes = true;
-        break;
-
-      case '--global':
-      case '-g':
-        result.global = true;
         break;
 
       case '--help':

@@ -1,66 +1,34 @@
-# Kracked_Skills Agent — API Documentation
+# Kracked_Skills Agent - API Documentation
 
 ## Backend REST API
 
-Base URL: `http://localhost:8080/api`
+Base URL: `http://localhost:4891/api`
 
 ---
 
 ### `GET /health`
 Health check endpoint.
 
-**Response:**
-```json
-{
-  "status": "ok",
-  "service": "Kracked_Skills_Agent_Backend",
-  "version": "1.0.0",
-  "db_connected": true
-}
-```
-
----
-
 ### `GET /agents`
 List all registered agents.
 
-**Response:**
-```json
-{
-  "agents": [
-    {
-      "id": "amad-001",
-      "name": "Amad",
-      "role": "Master Agent",
-      "level": 5,
-      "xp": 1240
-    }
-  ]
-}
-```
+### `GET /agents/:id`
+Get single agent by ID.
 
----
-
-### `POST /agents` *(Planned)*
-Register a new agent.
+### `POST /agents/:id/xp`
+Add XP to an agent.
 
 **Request Body:**
 ```json
 {
-  "name": "CustomAgent",
-  "role": "Specialist",
-  "palette": 3
+  "amount": 50
 }
 ```
 
----
-
-### `GET /projects` *(Planned)*
+### `GET /projects`
 List all projects.
 
----
-
-### `POST /projects` *(Planned)*
+### `POST /projects`
 Create a new project.
 
 **Request Body:**
@@ -71,14 +39,10 @@ Create a new project.
 }
 ```
 
----
-
-### `GET /memory/:projectId` *(Planned)*
+### `GET /memory/:projectId`
 Get memory entries for a project.
 
----
-
-### `POST /memory` *(Planned)*
+### `POST /memory`
 Store a memory entry.
 
 **Request Body:**
@@ -86,24 +50,25 @@ Store a memory entry.
 {
   "project_id": "proj-001",
   "key": "tech-stack",
-  "value": "Next.js + Go + SQLite",
+  "value": "Next.js + Node + sql.js",
   "type": "local"
 }
 ```
 
+### `POST /swarm/run` *(Planned)*
+Execute a multi-agent swarm task (reserved for future phase).
+
 ---
 
-### `POST /swarm/run` *(Planned)*
-Execute a multi-agent swarm task.
+## Observer Event Stream (Local File)
 
-**Request Body:**
-```json
-{
-  "agents": ["amad", "ara", "sari"],
-  "task": "Analyze security vulnerabilities in auth module",
-  "mode": "party"
-}
-```
+All adapters (codex, antigravity, cursor, opencode, kilocode, cline, claude-code) share one local observer stream:
+
+- `.kracked/runtime/events.jsonl`
+- Schema: `.kracked/runtime/SCHEMA.md`
+- Emitter: `.kracked/runtime/emit-event.js`
+
+Each line is one JSON object and should be append-only.
 
 ---
 

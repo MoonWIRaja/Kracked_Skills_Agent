@@ -1,152 +1,244 @@
 # Kracked_Skills Agent (KD)
 
-> 🤖 Sistem AI Multi-Agent untuk Pembangunan Perisian  
-> *Oleh MoonWIRaja — Dibina dengan ❤️ di Malaysia*
+<p align="center">
+<strong>Structured Multi-Agent AI Execution System for Real Software Delivery</strong>
+<br>
+<img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+<img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+<img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg" alt="Node">
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org)
-[![Go](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org)
+<p align="center">
+Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
+</p>
 
----
-
-## 🚀 Pengenalan
-
-**Kracked_Skills Agent (KD)** ialah sistem AI multi-agen yang mentransformasikan cara anda membangunkan perisian. Bayangkan sebuah pasukan 9 ejen AI pakar bekerja bersama — menganalisis, mereka bentuk, mengekod, menguji, dan melepaskan aplikasi anda.
-
-### ✨ Ciri-ciri Utama
-- 🤖 **9 Ejen AI Pakar** — Setiap satu mempunyai peranan, kemahiran, dan personaliti tersendiri
-- 🎉 **Party Mode** — 2-5 ejen berkolaborasi serentak untuk isu kompleks
-- 🛡️ **Preflight Safety** — Senarai semak keselamatan wajib sebelum deployment
-- 🧠 **Memory System** — Ilmu terkumpul merentasi projek (lokal + global)
-- 🎮 **Pixel Observer** — Tonton ejen bekerja di pejabat maya 2D!
-- 📊 **XP & Leveling** — Sistem gamifikasi untuk pencapaian
-- 🌐 **6 IDE Adapter** — Codex, Antigravity, Cursor, OpenCode, Kilo Code, Cline
+<p align="center">
+<a href="#-quick-start">Quick Start</a> •
+<a href="#-after-install-what-to-run">After Install</a> •
+<a href="#-pixel-observer-native-panel-vs-code-family">Pixel Native Panel</a> •
+<a href="#-commands">Commands</a> •
+<a href="#-supported-tools--adapters">Supported Tools</a>
+</p>
 
 ---
 
-## 📦 Pemasangan
+> **KD finishes what it starts.**
 
-### Kaedah 1: npm (Disyorkan)
+## Quick Start
+
+### Install in Your Project
+
 ```bash
+# npm (recommended)
 npx kracked-skills-agent install
-```
 
-### Kaedah 2: Terus dari GitHub
-```bash
+# or direct from this repo
 npx github:MoonWIRaja/Kracked_Skills_Agent install
 ```
 
-### Opsyen CLI
+### Non-Interactive Install Example
+
 ```bash
-npx kracked-skills-agent install --directory ./my-project --language MS --tools codex,cursor --yes
+npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --language MS --tools antigravity,claude-code --agent Moon
 ```
 
-| Flag | Penerangan |
-|------|------------|
-| `--directory, -d` | Direktori sasaran |
-| `--language, -l` | Bahasa (EN, MS, atau custom) |
-| `--tools, -t` | IDE tools (codex, antigravity, cursor, opencode, kilocode, cline) |
-| `--yes, -y` | Mod bukan interaktif |
-| `--name, -n` | Nama projek |
+### Install Questions You Will See
+1. Language (EN / MS / custom)
+2. IDE tools (codex, antigravity, cursor, opencode, kilocode, cline, claude-code)
+3. Project name
+4. Main Agent name
 
 ---
 
-## 🤖 Pasukan Ejen
+## After Install (What To Run)
 
-| Agen | Nama | Peranan | Kepakaran |
-|------|------|---------|-----------|
-| 🧠 Master | **Amad** | Orchestrator | Delegasi tugas, koordinasi |
-| 🔍 Analyst | **Ara** | Penyelidik | Discovery, penyelidikan, penilaian risiko |
-| 📋 PM | **Paan** | Pengurus Produk | PRD, user stories, kriteria penerimaan |
-| 🏗️ Architect | **Adi** | Arkitek | System design, tech stack, ADR |
-| 🎯 Tech Lead | **Teja** | Ketua Teknikal | Epic decomposition, sprint planning |
-| 💻 Engineer | **Ezra** | Jurutera | TDD, implementation, clean code |
-| ✅ QA | **Qila** | Jaminan Kualiti | Code review, test coverage |
-| 🛡️ Security | **Sari** | Pakar Keselamatan | OWASP, security audit |
-| 🚀 DevOps | **Dian** | Jurutera DevOps | CI/CD, deployment, preflight |
-| 📦 Release | **Rina** | Pengurus Pelepasan | Release notes, changelog |
+### In IDE (Antigravity, Codex, Cursor, etc.)
+Use KD commands directly in chat:
 
----
-
-## 📋 Arahan KD (Commands)
-
-| Arahan | Keterangan |
-|--------|------------|
-| `/kd` | Menu utama |
-| `/kd-analyze` | Fasa discovery + penilaian skala |
-| `/kd-brainstorm` | Sumbang saran dengan Party Mode |
-| `/kd-prd` | Hasilkan PRD |
-| `/kd-arch` | Reka bentuk arkitektur |
-| `/kd-story` | Pecahkan epik kepada stories |
-| `/kd-dev-story` | Implement story (TDD) |
-| `/kd-code-review` | Semakan kod (QA + Security) |
-| `/kd-deploy` | Deploy dengan preflight check |
-| `/kd-release` | Release notes & changelog |
-| `/kd-status` | Tunjukkan status projek |
-| `/kd-help` | Bantuan pintar |
-| `/kd-sync-memory` | Simpan ilmu ke Global Memory |
-
----
-
-## 🏗️ Struktur Projek
-
-```
-Kracked_Skills_Agent/
-├── bin/                    # CLI entry points
-│   ├── cli.js              # Main CLI
-│   └── args.js             # Argument parser
-├── src/                    # Core modules
-│   ├── installer.js        # Install logic
-│   ├── adapters.js         # 6 IDE adapter generator
-│   ├── display.js          # TUI utilities
-│   ├── help.js             # Help display
-│   ├── stats.js            # XP stats
-│   ├── updater.js          # Update handler
-│   └── uninstaller.js      # Uninstall handler
-├── backend/                # Go backend engine
-│   ├── go.mod
-│   └── main.go             # Gin + SQLite server
-├── frontend/               # Next.js web UI
-│   ├── src/app/            # Pages & layout
-│   ├── src/components/     # React components
-│   └── src/lib/pixel/      # 2D engine
-├── templates/.kracked/     # Agent system (installed to projects)
-│   ├── prompts/            # System prompt + multi-agent protocols
-│   ├── agents/             # 9 agent definitions
-│   ├── workflows/          # 25 command workflows
-│   ├── skills/             # 11 SKILL.md files
-│   ├── templates/          # Document templates
-│   ├── gates/              # Validation blocks
-│   ├── checklists/         # Preflight protocols
-│   └── config/             # Language + marketplace
-├── scripts/                # Utility scripts
-└── status/                 # Project tracking
+```text
+/kd
+/kd-help
+/kd-analyze
 ```
 
----
+If IDE does not auto-suggest slash commands, type manually.
 
-## 🖥️ Platform Web (Backend + Frontend)
+### To See Pixel Observer UI (Web)
 
-### Jalankan Backend
 ```bash
+# terminal 1
 cd backend
-go mod tidy
-go run main.go    # → http://localhost:8080
-```
+npm install
+node server.js
 
-### Jalankan Frontend
-```bash
+# terminal 2
 cd frontend
 npm install
-npm run dev       # → http://localhost:3000
+npm run dev
+```
+
+Open:
+- `http://localhost:4892` (Pixel Observer UI)
+- backend health: `http://localhost:4891/api/health`
+
+---
+
+## Pixel Observer Native Panel (VS Code Family)
+
+Yes, native panel is available now for VS Code-compatible IDEs.
+
+### Install Native Panel Extension
+
+```bash
+# from repo root
+npm run panel:package
+
+# then install generated .vsix
+code --install-extension ide/vscode-kd-pixel-panel/kd-pixel-panel-0.1.0.vsix
+```
+
+Open panel from Command Palette:
+
+```text
+KD: Open Pixel Observer Panel
+```
+
+Works with event stream from your project:
+- `.kracked/runtime/events.jsonl`
+
+### Antigravity Compatibility
+
+Antigravity uses the same bridge:
+
+```bash
+node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-prd --message "PRD ready"
+```
+
+So native panel can observe Antigravity sessions using this shared stream.
+
+---
+
+## Pixel Observer (How It Works)
+
+1. KD adapters share one observer event stream:
+2. Native panel and web UI both read the same stream.
+3. `.kracked/runtime/events.jsonl`
+4. Schema file:
+5. `.kracked/runtime/SCHEMA.md`
+6. Event emitter script:
+7. `.kracked/runtime/emit-event.js`
+
+Manual event example:
+
+```bash
+node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-prd --message "PRD ready"
+```
+
+Observer flow:
+
+```mermaid
+flowchart LR
+  A[IDE Chat Command /kd-*] --> B[Adapter Workflow]
+  B --> C[emit-event.js]
+  C --> D[.kracked/runtime/events.jsonl]
+  D --> E[VS Code Native Panel]
+  D --> F[Backend API]
+  F --> G[Web Pixel Observer UI]
 ```
 
 ---
 
-## 🤝 Menyumbang (Contributing)
+## Core Features
 
-Lihat [CONTRIBUTING.md](CONTRIBUTING.md) untuk panduan penyumbangan.
+### Main Agent + Professional Agents
+1. Main Agent name is configurable during install (`--agent`).
+2. Professional agents are randomized automatically from name pool.
+3. XP and Level are tied to Main Agent in `.kracked/security/xp.json`.
 
-## 📄 Lesen
+### Safe Reinstall in Same Project
+Reinstall is supported and now preserves key work files:
+1. `KD_output/status/status.md`
+2. `.kracked/security/xp.json` (progress preserved, agent name updated if changed)
+3. `.kracked/runtime/events.jsonl`
+4. `.kracked/skills/memories/SKILL.md`
 
-MIT License — Lihat [LICENSE](LICENSE) untuk butiran.
+Use:
+
+```bash
+npx github:MoonWIRaja/Kracked_Skills_Agent install --yes --agent Qih --tools antigravity,claude-code
+```
+
+---
+
+## Commands
+
+| Category | Commands | Description |
+|---|---|---|
+| Core | `/kd`, `/kd-help`, `/kd-status` | Menu, guidance, state |
+| Discovery | `/kd-analyze`, `/kd-brainstorm` | Discovery and solution shaping |
+| Product | `/kd-prd`, `/kd-story` | Requirements and stories |
+| Engineering | `/kd-dev-story`, `/kd-refactor` | Build and refactor |
+| Quality | `/kd-code-review`, `/kd-test`, `/kd-security-audit` | QA and security |
+| Delivery | `/kd-deploy`, `/kd-release` | Deploy and release |
+
+---
+
+## Supported Tools & Adapters
+
+| Tool | Adapter Output | Auto Setup |
+|---|---|---|
+| Codex | `.codex/INSTRUCTIONS.md` + `.codex/commands/` | Yes |
+| Antigravity | `.agent/workflows/` + `.agents/skills/` | Yes |
+| Cursor | `.cursor/commands/` | Yes |
+| OpenCode | `.opencode/agents/` | Yes |
+| Kilo Code | `.kilocode/workflows/` + `.kilocodemodes` | Yes |
+| Cline | `.clinerules/workflows/` | Yes |
+| Claude Code | `CLAUDE.md` + `.claude/commands/` | Yes |
+
+---
+
+## Project Structure
+
+```text
+.kracked/
+├── agents/                    # role definitions
+├── prompts/                   # system and role prompts
+├── workflows/                 # KD command workflows
+├── skills/                    # modular skills
+├── runtime/
+│   ├── SCHEMA.md              # observer event schema
+│   ├── events.jsonl           # shared event stream
+│   └── emit-event.js          # event appender
+├── security/
+│   └── xp.json                # main-agent XP tracking
+└── config/
+    ├── settings.json
+    ├── main-agent.json
+    └── agents.json
+
+KD_output/
+└── status/status.md
+```
+
+---
+
+## Maintenance
+
+```bash
+npx kracked-skills-agent update
+npx kracked-skills-agent uninstall
+npx kracked-skills-agent help
+```
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+<strong>KD finishes what it starts.</strong><br>
+<em>by KRACKEDDEVS</em>
+</p>

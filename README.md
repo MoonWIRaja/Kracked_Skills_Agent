@@ -88,6 +88,7 @@ KD supports 3 observer modes.
 
 For VS Code / Cursor / Windsurf.
 Now uses **upstream pixel-agents style panel UI** (bundled office map + sprite runtime) with KD event mapping.
+Bundled theme now includes refreshed KD RPG sprites (walls + character sheets) generated from the new asset direction.
 You can also:
 
 1. Edit office layout (drag desks, reading zone, waiting zone)
@@ -294,6 +295,8 @@ Then in command palette run:
 ```text
 KD Pixel: Reset Office Layout
 ```
+
+If still old, confirm extension version is `0.3.1` or newer.
 
 ### Antigravity but panel tidak muncul
 

@@ -285,6 +285,7 @@ Check:
 Run a forced reinstall and reset layout:
 
 ```bash
+code --uninstall-extension krackeddevs.kd-pixel-panel
 kd-panel-install.bat
 ```
 

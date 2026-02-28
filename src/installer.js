@@ -116,23 +116,25 @@ if not exist "%PANEL_DIR%\\package.json" (
   exit /b 1
 )
 cd /d "%PANEL_DIR%"
+del /q *.vsix >nul 2>&1
 echo [KD] Packaging VS Code panel extension...
 call npx @vscode/vsce package
 if errorlevel 1 exit /b 1
-	for %%f in (*.vsix) do (
-	  set VSIX=%%f
-	)
-	if "%VSIX%"=="" (
-	  echo [KD] No VSIX generated.
-	  exit /b 1
-	)
-	echo [KD] Removing old KD Pixel extension (if any)...
-	call code --uninstall-extension krackeddevs.kd-pixel-panel >nul 2>&1
-	echo [KD] Installing %VSIX%...
-	call code --install-extension "%PANEL_DIR%\\%VSIX%" --force
-	if errorlevel 1 exit /b 1
-	echo [KD] Native panel installed successfully.
-	`;
+set VSIX=
+for /f "delims=" %%f in ('dir /b /o-d *.vsix') do (
+  if not defined VSIX set VSIX=%%f
+)
+if "%VSIX%"=="" (
+  echo [KD] No VSIX generated.
+  exit /b 1
+)
+echo [KD] Removing old KD Pixel extension (if any)...
+call code --uninstall-extension krackeddevs.kd-pixel-panel >nul 2>&1
+echo [KD] Installing %VSIX%...
+call code --install-extension "%PANEL_DIR%\\%VSIX%" --force
+if errorlevel 1 exit /b 1
+echo [KD] Native panel installed successfully.
+`;
 
   const ps1Content = `$ErrorActionPreference = "Stop"
 $panelDir = Join-Path $PSScriptRoot ".kracked/tools/vscode-kd-pixel-panel"
@@ -141,20 +143,21 @@ if (-not (Test-Path (Join-Path $panelDir "package.json"))) {
 }
 
 Set-Location $panelDir
+Get-ChildItem -Path $panelDir -Filter *.vsix -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Write-Host "[KD] Packaging VS Code panel extension..."
 npx @vscode/vsce package
 
 $vsix = Get-ChildItem -Path $panelDir -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-	if (-not $vsix) {
-	  Write-Error "[KD] No VSIX generated."
-	}
+if (-not $vsix) {
+  Write-Error "[KD] No VSIX generated."
+}
 
-	Write-Host "[KD] Removing old KD Pixel extension (if any)..."
-	code --uninstall-extension krackeddevs.kd-pixel-panel *> $null
-	Write-Host "[KD] Installing $($vsix.FullName)..."
-	code --install-extension $vsix.FullName --force
-	Write-Host "[KD] Native panel installed successfully."
-	`;
+Write-Host "[KD] Removing old KD Pixel extension (if any)..."
+code --uninstall-extension krackeddevs.kd-pixel-panel *> $null
+Write-Host "[KD] Installing $($vsix.FullName)..."
+code --install-extension $vsix.FullName --force
+Write-Host "[KD] Native panel installed successfully."
+`;
 
   const tuiBat = `@echo off
 setlocal

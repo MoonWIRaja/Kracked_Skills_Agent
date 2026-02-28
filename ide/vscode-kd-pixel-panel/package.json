@@ -1,13 +1,25 @@
 {
   "name": "kd-pixel-panel",
   "displayName": "KD Pixel Panel",
-  "description": "Native IDE panel for KD observer events.jsonl",
+  "description": "Native KD pixel observer panel powered by pixel-agents webview UI",
   "version": "0.1.0",
   "publisher": "krackeddevs",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MoonWIRaja/Kracked_Skills_Agent.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
+  "files": [
+    "extension.js",
+    "dist/**",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "package.json"
+  ],
   "categories": [
     "Visualization",
     "Other"
@@ -16,7 +28,8 @@
     "onStartupFinished",
     "onView:kdPixel.panelView",
     "onCommand:kdPixel.openPanel",
-    "onCommand:kdPixel.refreshPanel"
+    "onCommand:kdPixel.refreshPanel",
+    "onCommand:kdPixel.resetLayout"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -28,6 +41,10 @@
       {
         "command": "kdPixel.refreshPanel",
         "title": "KD: Refresh Pixel Observer Panel"
+      },
+      {
+        "command": "kdPixel.resetLayout",
+        "title": "KD Pixel: Reset Office Layout"
       }
     ],
     "viewsContainers": {

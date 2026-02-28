@@ -87,7 +87,12 @@ KD supports 3 observer modes.
 ### 1. Native Panel (VS Code Family)
 
 For VS Code / Cursor / Windsurf.
-Now uses **animated pixel office mode**: agents walk, move between zones, and react to activity states.
+Now uses **upstream pixel-agents style panel UI** (bundled office map + sprite runtime) with KD event mapping.
+You can also:
+
+1. Edit office layout (drag desks, reading zone, waiting zone)
+2. Assign seats (click agent, then click desk)
+3. Spawn delegation sub-agent activity when event has `target_agent_id`
 
 Install extension from project root:
 
@@ -107,7 +112,10 @@ Command palette fallback:
 
 ```text
 KD Pixel: Show Panel
+KD Pixel: Reset Office Layout
 ```
+
+Attribution: pixel-agents UI style by Pablo De Lucca (MIT).
 
 ### 2. Web Mirror (Recommended for Antigravity)
 

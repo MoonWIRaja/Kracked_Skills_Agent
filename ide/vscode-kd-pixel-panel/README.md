@@ -4,11 +4,7 @@ Native IDE panel that reads KD event stream from:
 
 - `.kracked/runtime/events.jsonl`
 
-This panel runs an animated pixel office scene:
-
-- each active agent appears as a character
-- characters walk between desk/reading/waiting zones
-- state reacts to actions from KD event stream
+This panel now uses the **upstream pixel-agents webview bundle style** (office map, sprites, edit mode UI) and maps KD events into that runtime.
 
 ## Install Extension (Local)
 
@@ -17,9 +13,7 @@ cd ide/vscode-kd-pixel-panel
 npx @vscode/vsce package
 ```
 
-This generates `kd-pixel-panel-0.1.0.vsix`.
-
-Install in VS Code:
+Install:
 
 ```bash
 code --install-extension kd-pixel-panel-0.1.0.vsix
@@ -27,21 +21,21 @@ code --install-extension kd-pixel-panel-0.1.0.vsix
 
 ## Open Panel
 
-This extension now appears as a native panel container (similar behavior to Pixel Agents):
+- Panel container: `KD Pixel`
+- View: `Pixel Observer`
+- Command fallback: `KD Pixel: Show Panel`
+- Reset command: `KD Pixel: Reset Office Layout`
 
-- Panel area icon/title: `KD Pixel`
-- View name: `Pixel Observer`
+## Notes
 
-Command Palette fallback:
+- KD runs this panel in **observer mode** (event-driven visualization).
+- Agent movement/status is derived from KD event stream.
+- Layout save/import/export is supported in panel UI.
 
-- `KD Pixel: Show Panel`
+## Attribution
 
-## Data Source
+Bundled UI style is derived from:
 
-The panel is read-only observer. It does not modify agent behavior.
+- https://github.com/pablodelucca/pixel-agents (MIT)
 
-Generate sample event:
-
-```bash
-node .kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name Moon --role "Master Agent" --action typing --task kd-analyze
-```
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

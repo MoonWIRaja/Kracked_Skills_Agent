@@ -119,18 +119,20 @@ cd /d "%PANEL_DIR%"
 echo [KD] Packaging VS Code panel extension...
 call npx @vscode/vsce package
 if errorlevel 1 exit /b 1
-for %%f in (*.vsix) do (
-  set VSIX=%%f
-)
-if "%VSIX%"=="" (
-  echo [KD] No VSIX generated.
-  exit /b 1
-)
-echo [KD] Installing %VSIX%...
-code --install-extension "%PANEL_DIR%\\%VSIX%"
-if errorlevel 1 exit /b 1
-echo [KD] Native panel installed successfully.
-`;
+	for %%f in (*.vsix) do (
+	  set VSIX=%%f
+	)
+	if "%VSIX%"=="" (
+	  echo [KD] No VSIX generated.
+	  exit /b 1
+	)
+	echo [KD] Removing old KD Pixel extension (if any)...
+	code --uninstall-extension krackeddevs.kd-pixel-panel >nul 2>&1
+	echo [KD] Installing %VSIX%...
+	code --install-extension "%PANEL_DIR%\\%VSIX%" --force
+	if errorlevel 1 exit /b 1
+	echo [KD] Native panel installed successfully.
+	`;
 
   const ps1Content = `$ErrorActionPreference = "Stop"
 $panelDir = Join-Path $PSScriptRoot ".kracked/tools/vscode-kd-pixel-panel"
@@ -143,14 +145,16 @@ Write-Host "[KD] Packaging VS Code panel extension..."
 npx @vscode/vsce package
 
 $vsix = Get-ChildItem -Path $panelDir -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not $vsix) {
-  Write-Error "[KD] No VSIX generated."
-}
+	if (-not $vsix) {
+	  Write-Error "[KD] No VSIX generated."
+	}
 
-Write-Host "[KD] Installing $($vsix.FullName)..."
-code --install-extension $vsix.FullName
-Write-Host "[KD] Native panel installed successfully."
-`;
+	Write-Host "[KD] Removing old KD Pixel extension (if any)..."
+	code --uninstall-extension krackeddevs.kd-pixel-panel *> $null
+	Write-Host "[KD] Installing $($vsix.FullName)..."
+	code --install-extension $vsix.FullName --force
+	Write-Host "[KD] Native panel installed successfully."
+	`;
 
   const tuiBat = `@echo off
 setlocal
@@ -282,7 +286,7 @@ function tryInstallNativePanel(targetDir) {
   }
 
   const vsixPath = vsixFiles[0].fullPath;
-  const codeResult = runCommand(panelDir, executableName('code'), ['--install-extension', vsixPath]);
+  const codeResult = runCommand(panelDir, executableName('code'), ['--install-extension', vsixPath, '--force']);
   if (codeResult.status !== 0) {
     return {
       ok: false,

@@ -279,6 +279,20 @@ Check:
 2. You are running from project root
 3. `.kracked/tools/vscode-kd-pixel-panel` exists
 
+### Pixel art still looks old / not like upstream
+
+Run a forced reinstall and reset layout:
+
+```bash
+kd-panel-install.bat
+```
+
+Then in command palette run:
+
+```text
+KD Pixel: Reset Office Layout
+```
+
 ### Antigravity but panel tidak muncul
 
 Use:

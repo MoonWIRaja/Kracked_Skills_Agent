@@ -52,6 +52,7 @@ test('installer creates core KD directories in non-interactive mode', async () =
       path.join(tempDir, '.codex', 'INSTRUCTIONS.md'),
       'utf8'
     );
+    const panelInstallBat = fs.readFileSync(path.join(tempDir, 'kd-panel-install.bat'), 'utf8');
 
     execFileSync(
       'node',
@@ -80,6 +81,8 @@ test('installer creates core KD directories in non-interactive mode', async () =
     );
     assert.equal(xp.agent, 'Moon');
     assert.match(codexInstructions, /Main agent for this installation: Moon/);
+    assert.match(panelInstallBat, /call code --uninstall-extension/);
+    assert.match(panelInstallBat, /call code --install-extension/);
     assert.equal(event.source, 'antigravity');
     assert.equal(event.agent_name, 'Moon');
     assert.equal(event.task, 'kd-prd');

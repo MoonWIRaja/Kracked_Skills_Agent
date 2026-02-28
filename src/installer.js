@@ -127,9 +127,9 @@ if errorlevel 1 exit /b 1
 	  exit /b 1
 	)
 	echo [KD] Removing old KD Pixel extension (if any)...
-	code --uninstall-extension krackeddevs.kd-pixel-panel >nul 2>&1
+	call code --uninstall-extension krackeddevs.kd-pixel-panel >nul 2>&1
 	echo [KD] Installing %VSIX%...
-	code --install-extension "%PANEL_DIR%\\%VSIX%" --force
+	call code --install-extension "%PANEL_DIR%\\%VSIX%" --force
 	if errorlevel 1 exit /b 1
 	echo [KD] Native panel installed successfully.
 	`;

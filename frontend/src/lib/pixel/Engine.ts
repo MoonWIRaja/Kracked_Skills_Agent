@@ -71,7 +71,7 @@ function resolveCharacterKey(id: string, role: string): string {
   }
 
   // Hash-based fallback — cycle through available characters
-  const chars = ['citizen1', 'citizen2', 'mage1', 'mage3', 'fighter', 'swordsman'];
+  const chars = ['citizen1', 'citizen2', 'fighter2', 'mage1', 'mage2', 'mage3', 'mage4', 'swordsman', 'guildmaster', 'reader1', 'reader2'];
   let hash = 0;
   for (let i = 0; i < idKey.length; i++) {
     hash = (hash * 31 + idKey.charCodeAt(i)) >>> 0;

@@ -53,11 +53,14 @@ export class OfficeMap {
   rows: number;
   tileSize: number;
   grid: TileType[][];
+  private interiorAtlas: HTMLImageElement | null = null;
+  private streetAtlas: HTMLImageElement | null = null;
 
   constructor(cols: number, rows: number, tileSize: number = 16) {
     this.cols = cols;
     this.rows = rows;
     this.tileSize = tileSize;
+    this.loadAtlases();
     this.grid = [];
     this.buildMap();
   }
@@ -195,6 +198,16 @@ export class OfficeMap {
     return ((h >>> 0) % 1000) / 1000;
   }
 
+  private loadAtlases() {
+    const interior = new Image();
+    interior.onload = () => { this.interiorAtlas = interior; };
+    interior.src = '/assets/Walls_interior.png';
+
+    const street = new Image();
+    street.onload = () => { this.streetAtlas = street; };
+    street.src = '/assets/Walls_street.png';
+  }
+
   // ── Drawing ────────────────────────────────────────
   draw(ctx: CanvasRenderingContext2D) {
     const T = this.tileSize;
@@ -214,40 +227,40 @@ export class OfficeMap {
         if (tile === TileType.Floor || tile === TileType.Desk || tile === TileType.Shelf) {
           switch (zone) {
             case 'darkops': {
-              // Dark stone floor
-              ctx.fillStyle = checker ? '#1e2840' : '#1a2238';
-              ctx.fillRect(px, py, T, T);
-              ctx.fillStyle = 'rgba(255,255,255,0.03)';
-              ctx.fillRect(px + 2, py + 2, 3, 3);
-              ctx.fillStyle = 'rgba(0,0,0,0.15)';
-              ctx.fillRect(px + T - 1, py, 1, T);
-              ctx.fillRect(px, py + T - 1, T, 1);
+              if (this.interiorAtlas) {
+                const col = checker ? 4 : 5;
+                ctx.drawImage(this.interiorAtlas, col * 16, 2 * 16, 16, 16, px, py, T, T);
+              } else {
+                ctx.fillStyle = checker ? '#1e2840' : '#1a2238';
+                ctx.fillRect(px, py, T, T);
+                ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                ctx.fillRect(px + T - 1, py, 1, T);
+                ctx.fillRect(px, py + T - 1, T, 1);
+              }
               break;
             }
             case 'wild': {
-              // Grass base
-              const gVar = Math.floor(r1 * 12) - 6;
-              ctx.fillStyle = `rgb(${38 + gVar}, ${checker ? 72 : 66 + gVar}, ${34 + gVar})`;
-              ctx.fillRect(px, py, T, T);
-              if (r2 > 0.5) {
-                ctx.fillStyle = 'rgba(80,140,70,0.3)';
-                ctx.fillRect(px + Math.floor(r1 * 10) + 2, py + Math.floor(r3 * 8) + 3, 1, 3);
+              if (this.streetAtlas) {
+                const col = checker ? 0 : 1;
+                ctx.drawImage(this.streetAtlas, col * 16, 8 * 16, 16, 16, px, py, T, T);
+              } else {
+                const gVar = Math.floor(r1 * 12) - 6;
+                ctx.fillStyle = `rgb(${38 + gVar}, ${checker ? 72 : 66 + gVar}, ${34 + gVar})`;
+                ctx.fillRect(px, py, T, T);
               }
               break;
             }
             default: {
-              // Warm wood plank floor
-              ctx.fillStyle = checker ? '#7a5430' : '#6e4a2a';
-              ctx.fillRect(px, py, T, T);
-              ctx.fillStyle = 'rgba(0,0,0,0.07)';
-              ctx.fillRect(px, py + 4, T, 1);
-              ctx.fillRect(px, py + 10, T, 1);
-              if (checker) {
-                ctx.fillStyle = 'rgba(0,0,0,0.12)';
-                ctx.fillRect(px + Math.floor(r1 * 8) + 3, py, 1, T);
+              if (this.interiorAtlas) {
+                const col = checker ? 20 : 21;
+                ctx.drawImage(this.interiorAtlas, col * 16, 5 * 16, 16, 16, px, py, T, T);
+              } else {
+                ctx.fillStyle = checker ? '#7a5430' : '#6e4a2a';
+                ctx.fillRect(px, py, T, T);
+                ctx.fillStyle = 'rgba(0,0,0,0.07)';
+                ctx.fillRect(px, py + 4, T, 1);
+                ctx.fillRect(px, py + 10, T, 1);
               }
-              ctx.fillStyle = 'rgba(255,220,160,0.05)';
-              ctx.fillRect(px + 1, py + 1, T - 2, 2);
               break;
             }
           }
@@ -298,20 +311,20 @@ export class OfficeMap {
   }
 
   private drawWall(ctx: CanvasRenderingContext2D, px: number, py: number, T: number, checker: boolean) {
-    // Stone brick wall
-    ctx.fillStyle = '#1c2236';
-    ctx.fillRect(px, py, T, T);
-    ctx.fillStyle = '#252d44';
-    ctx.fillRect(px + 1, py + 1, T - 2, 6);
-    ctx.fillRect(px + 1, py + 9, T - 2, 6);
-    // Mortar lines
-    ctx.fillStyle = '#161c2e';
-    ctx.fillRect(px, py + 7, T, 2);
-    ctx.fillRect(px + (checker ? 5 : 11), py, 1, 7);
-    ctx.fillRect(px + (checker ? 11 : 5), py + 9, 1, 7);
-    // Top highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.fillRect(px + 1, py + 1, T - 2, 1);
+    if (this.interiorAtlas) {
+      const col = checker ? 6 : 7;
+      ctx.drawImage(this.interiorAtlas, col * 16, 0, 16, 16, px, py, T, T);
+    } else {
+      ctx.fillStyle = '#1c2236';
+      ctx.fillRect(px, py, T, T);
+      ctx.fillStyle = '#252d44';
+      ctx.fillRect(px + 1, py + 1, T - 2, 6);
+      ctx.fillRect(px + 1, py + 9, T - 2, 6);
+      ctx.fillStyle = '#161c2e';
+      ctx.fillRect(px, py + 7, T, 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fillRect(px + 1, py + 1, T - 2, 1);
+    }
   }
 
   private drawDesk(ctx: CanvasRenderingContext2D, px: number, py: number, T: number, zone: string) {

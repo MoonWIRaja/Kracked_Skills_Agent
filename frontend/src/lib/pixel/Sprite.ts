@@ -16,14 +16,18 @@
  */
 
 // Known character definitions: [walkFile, idleFile, walkCols, idleCols]
-export const CHARACTER_DEFS: Record<string, { walk: string; idle: string; walkCols: number; idleCols: number }> = {
-  citizen1: { walk: 'Citizen1_Walk.png', idle: 'Citizen1_Idle.png', walkCols: 6, idleCols: 8 },
-  citizen2: { walk: 'Citizen2_Walk.png', idle: 'Citizen2_Idle.png', walkCols: 6, idleCols: 8 },
-  mage1: { walk: 'Mage1.png', idle: 'Mage1.png', walkCols: 7, idleCols: 7 },
-  mage3: { walk: 'Mage3.png', idle: 'Mage3.png', walkCols: 7, idleCols: 7 },
-  fighter: { walk: 'Fighter2_Walk.png', idle: 'Fighter2_Idle.png', walkCols: 6, idleCols: 8 },
-  swordsman: { walk: 'Swordsman_Walk.png', idle: 'Swordsman_Idle.png', walkCols: 6, idleCols: 9 },
-  guildmaster: { walk: 'Guildmaster.png', idle: 'Guildmaster.png', walkCols: 9, idleCols: 9 },
+export const CHARACTER_DEFS: Record<string, { walk: string; idle: string; walkCols: number; idleCols: number; walkRows?: number; idleRows?: number }> = {
+  citizen1: { walk: 'Citizen1_Walk.png', idle: 'Citizen1_Idle.png', walkCols: 6, idleCols: 8, walkRows: 4, idleRows: 4 },
+  citizen2: { walk: 'Citizen2_Walk.png', idle: 'Citizen2_Idle.png', walkCols: 6, idleCols: 8, walkRows: 4, idleRows: 4 },
+  fighter2: { walk: 'Fighter2_Walk.png', idle: 'Fighter2_Idle.png', walkCols: 6, idleCols: 8, walkRows: 4, idleRows: 4 },
+  mage1: { walk: 'Mage1.png', idle: 'Mage1.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
+  mage2: { walk: 'Mage2.png', idle: 'Mage2.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
+  mage3: { walk: 'Mage3.png', idle: 'Mage3.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
+  mage4: { walk: 'Mage4.png', idle: 'Mage4.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
+  swordsman: { walk: 'Swordsman_Walk.png', idle: 'Swordsman_Idle.png', walkCols: 6, idleCols: 9, walkRows: 4, idleRows: 4 },
+  guildmaster: { walk: 'Guildmaster.png', idle: 'Guildmaster.png', walkCols: 7, idleCols: 7, walkRows: 1, idleRows: 1 },
+  reader1: { walk: 'Reader1.png', idle: 'Reader1.png', walkCols: 9, idleCols: 9, walkRows: 1, idleRows: 1 },
+  reader2: { walk: 'Reader2.png', idle: 'Reader2.png', walkCols: 9, idleCols: 9, walkRows: 1, idleRows: 1 },
 };
 
 // Map agent roles → character sprite key
@@ -34,12 +38,25 @@ export const ROLE_TO_CHARACTER: Record<string, string> = {
   'pm': 'citizen2',
   'engineer': 'mage1',
   'tech-lead': 'mage1',
-  'qa': 'swordsman',
-  'security': 'swordsman',
+  'developer': 'mage2',
+  'coder': 'mage2',
   'analyst': 'mage3',
   'architect': 'mage3',
-  'devops': 'fighter',
-  'release': 'fighter',
+  'designer': 'mage4',
+  'ui': 'mage4',
+  'qa': 'swordsman',
+  'quality': 'swordsman',
+  'tester': 'swordsman',
+  'security': 'fighter2',
+  'guard': 'fighter2',
+  'devops': 'fighter2',
+  'ops': 'fighter2',
+  'release': 'guildmaster',
+  'manager': 'guildmaster',
+  'researcher': 'reader1',
+  'reader': 'reader1',
+  'writer': 'reader2',
+  'docs': 'reader2',
 };
 
 const DIR_MAP = { down: 0, left: 1, right: 2, up: 3 };

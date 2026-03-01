@@ -70,6 +70,8 @@
     props: [],
     characterSheets: [],
     roleSprites: {},
+    tileAtlasInterior: null,
+    tileAtlasStreet: null,
     agents: new Map(),
     events: [],
     usingWebPoll: !vscode,
@@ -79,17 +81,21 @@
   };
 
   const CHARACTER_DEFS = {
-    citizen1: { walk: 'Citizen1_Walk.png', idle: 'Citizen1_Idle.png', walkCols: 6, idleCols: 8 },
-    citizen2: { walk: 'Citizen2_Walk.png', idle: 'Citizen2_Idle.png', walkCols: 6, idleCols: 8 },
-    mage1: { walk: 'Mage1.png', idle: 'Mage1.png', walkCols: 7, idleCols: 7 },
-    mage3: { walk: 'Mage3.png', idle: 'Mage3.png', walkCols: 7, idleCols: 7 },
+    citizen1: { walk: 'Citizen1_Walk.png', idle: 'Citizen1_Idle.png', walkCols: 6, idleCols: 8, walkRows: 4, idleRows: 4 },
+    citizen2: { walk: 'Citizen2_Walk.png', idle: 'Citizen2_Idle.png', walkCols: 6, idleCols: 8, walkRows: 4, idleRows: 4 },
+    fighter2: { walk: 'Fighter2_Walk.png', idle: 'Fighter2_Idle.png', walkCols: 6, idleCols: 8, walkRows: 4, idleRows: 4 },
+    mage1: { walk: 'Mage1.png', idle: 'Mage1.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
+    mage2: { walk: 'Mage2.png', idle: 'Mage2.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
+    mage3: { walk: 'Mage3.png', idle: 'Mage3.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
+    mage4: { walk: 'Mage4.png', idle: 'Mage4.png', walkCols: 7, idleCols: 7, walkRows: 4, idleRows: 4 },
     swordsman: {
       walk: 'Swordsman_lvl1_Walk_with_shadow.png',
       idle: 'Swordsman_lvl1_Idle_with_shadow.png',
-      walkCols: 6,
-      idleCols: 9,
+      walkCols: 6, idleCols: 9, walkRows: 4, idleRows: 4,
     },
-    guildmaster: { walk: 'Guildmaster.png', idle: 'Guildmaster.png', walkCols: 9, idleCols: 9 },
+    guildmaster: { walk: 'Guildmaster.png', idle: 'Guildmaster.png', walkCols: 7, idleCols: 7, walkRows: 1, idleRows: 1 },
+    reader1: { walk: 'Reader1.png', idle: 'Reader1.png', walkCols: 9, idleCols: 9, walkRows: 1, idleRows: 1 },
+    reader2: { walk: 'Reader2.png', idle: 'Reader2.png', walkCols: 9, idleCols: 9, walkRows: 1, idleRows: 1 },
   };
 
   const ROLE_TO_CHARACTER = {
@@ -101,14 +107,26 @@
     pm: 'citizen2',
     engineer: 'mage1',
     'tech-lead': 'mage1',
+    developer: 'mage2',
+    coder: 'mage2',
     analyst: 'mage3',
     architect: 'mage3',
+    designer: 'mage4',
+    ui: 'mage4',
     qa: 'swordsman',
     quality: 'swordsman',
-    security: 'swordsman',
-    devops: 'guildmaster',
+    tester: 'swordsman',
+    security: 'fighter2',
+    guard: 'fighter2',
+    devops: 'fighter2',
+    ops: 'fighter2',
     'release-manager': 'guildmaster',
     release: 'guildmaster',
+    manager: 'guildmaster',
+    researcher: 'reader1',
+    reader: 'reader1',
+    writer: 'reader2',
+    docs: 'reader2',
   };
 
   const imageCache = new Map();
@@ -443,8 +461,8 @@
 
       const walkCols = Math.max(1, Number(def.walkCols || 6));
       const idleCols = Math.max(1, Number(def.idleCols || walkCols));
-      const walkRows = 4;
-      const idleRows = 4;
+      const walkRows = Math.max(1, Number(def.walkRows || 4));
+      const idleRows = Math.max(1, Number(def.idleRows || 4));
 
       const walkFrameWidth = Math.max(1, Math.floor((walkImage.naturalWidth || walkImage.width) / walkCols));
       const walkFrameHeight = Math.max(1, Math.floor((walkImage.naturalHeight || walkImage.height) / walkRows));
@@ -844,6 +862,32 @@
     state.characterSheets = charSheets.filter(Boolean);
     state.roleSprites = await buildRoleSpriteCatalog(catalog);
 
+    // Load tile atlases from the guild hall asset pack
+    const allImages = collectCatalogImages(catalog);
+    const interiorAtlasPath = pickCatalogImageByBase(allImages, 'Walls_interior.png', {
+      preferPack: 'craftpix-net-189780-free-top-down-pixel-art-guild-hall-asset-pack',
+      preferPngFolder: true,
+    });
+    const streetAtlasPath = pickCatalogImageByBase(allImages, 'Walls_street.png', {
+      preferPack: 'craftpix-net-189780-free-top-down-pixel-art-guild-hall-asset-pack',
+      preferPngFolder: true,
+    });
+    try { if (interiorAtlasPath) state.tileAtlasInterior = await loadImage(interiorAtlasPath); } catch { }
+    try { if (streetAtlasPath) state.tileAtlasStreet = await loadImage(streetAtlasPath); } catch { }
+
+    // Re-assign roleSprites to any agents that were created before loading finished
+    if (Object.keys(state.roleSprites).length > 0) {
+      for (const agent of state.agents.values()) {
+        if (!agent.sprite || agent.sprite.kind !== 'roleSprite') {
+          const resolved = resolveAgentSprite(agent.id, agent.role, agent.name);
+          if (resolved.sprite && resolved.sprite.kind === 'roleSprite') {
+            agent.sprite = resolved.sprite;
+            agent.characterKey = resolved.characterKey;
+          }
+        }
+      }
+    }
+
     state.loadedAssets =
       state.pools.floors.length
       + state.pools.walls.length
@@ -987,136 +1031,129 @@
     const r1 = tileRand(x, y, 0);
     const r2 = tileRand(x, y, 1);
     const r3 = tileRand(x, y, 2);
+    const interior = state.tileAtlasInterior;
+    const street = state.tileAtlasStreet;
 
     switch (tileType) {
       case TILE_VOID:
-        return; // transparent, background shows through
+        return;
 
       case TILE_FLOOR_MAIN: {
-        // Warm wood plank floor
-        ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
-        ctx.fillRect(px, py, T, T);
-        // Wood grain lines
-        ctx.fillStyle = 'rgba(0,0,0,0.08)';
-        ctx.fillRect(px, py + 4, T, 1);
-        ctx.fillRect(px, py + 10, T, 1);
-        // Plank gap
-        if (checker) {
-          ctx.fillStyle = 'rgba(0,0,0,0.15)';
-          ctx.fillRect(px + Math.floor(r1 * 8) + 3, py, 1, T);
+        // Use wooden floor cells from Walls_interior.png bottom-right area
+        if (interior) {
+          // Bottom-right has wooden floor tiles — row 5, cols 19-23 approx (16px grid)
+          const floorCol = checker ? 20 : 21;
+          ctx.drawImage(interior, floorCol * 16, 5 * 16, 16, 16, px, py, T, T);
+        } else {
+          ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
+          ctx.fillRect(px, py, T, T);
+          ctx.fillStyle = 'rgba(0,0,0,0.08)';
+          ctx.fillRect(px, py + 4, T, 1);
+          ctx.fillRect(px, py + 10, T, 1);
         }
-        // Subtle highlight
-        ctx.fillStyle = 'rgba(255,220,160,0.06)';
-        ctx.fillRect(px + 1, py + 1, T - 2, 2);
         break;
       }
 
       case TILE_FLOOR_MEETING: {
-        // Rich dark wood - meeting room
-        ctx.fillStyle = checker ? '#6e4928' : '#634022';
-        ctx.fillRect(px, py, T, T);
-        // Parquet pattern
-        ctx.fillStyle = 'rgba(255,200,120,0.06)';
-        if (checker) {
-          ctx.fillRect(px + 1, py + 1, 6, T - 2);
-          ctx.fillRect(px + 9, py + 1, 6, T - 2);
+        // Use darker floor variant from interior atlas
+        if (interior) {
+          const floorCol = checker ? 22 : 23;
+          ctx.drawImage(interior, floorCol * 16, 5 * 16, 16, 16, px, py, T, T);
         } else {
-          ctx.fillRect(px + 1, py + 1, T - 2, 6);
-          ctx.fillRect(px + 1, py + 9, T - 2, 6);
+          ctx.fillStyle = checker ? '#6e4928' : '#634022';
+          ctx.fillRect(px, py, T, T);
+          ctx.fillStyle = 'rgba(0,0,0,0.12)';
+          ctx.fillRect(px, py + 7, T, 1);
         }
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
-        ctx.fillRect(px, py + 7, T, 1);
         break;
       }
 
       case TILE_FLOOR_OPS: {
-        // Clean stone/tile - ops room
-        ctx.fillStyle = checker ? '#8a8a98' : '#7e7e8c';
-        ctx.fillRect(px, py, T, T);
-        // Tile grout
-        ctx.fillStyle = 'rgba(0,0,0,0.18)';
-        ctx.fillRect(px + T - 1, py, 1, T);
-        ctx.fillRect(px, py + T - 1, T, 1);
-        // Subtle sheen
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillRect(px + 2, py + 2, 4, 4);
+        // Use stone tiles from interior atlas — the blue/grey stone sections
+        if (interior) {
+          const stoneCol = checker ? 4 : 5;
+          ctx.drawImage(interior, stoneCol * 16, 2 * 16, 16, 16, px, py, T, T);
+        } else {
+          ctx.fillStyle = checker ? '#8a8a98' : '#7e7e8c';
+          ctx.fillRect(px, py, T, T);
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          ctx.fillRect(px + T - 1, py, 1, T);
+          ctx.fillRect(px, py + T - 1, T, 1);
+        }
         break;
       }
 
       case TILE_FLOOR_LOUNGE: {
-        // Soft blue carpet - lounge
-        ctx.fillStyle = checker ? '#3b6080' : '#345874';
-        ctx.fillRect(px, py, T, T);
-        // Carpet texture
-        ctx.fillStyle = 'rgba(255,255,255,0.04)';
-        ctx.fillRect(px + Math.floor(r1 * 6) + 2, py + Math.floor(r2 * 6) + 2, 2, 2);
-        ctx.fillRect(px + Math.floor(r3 * 6) + 6, py + Math.floor(r1 * 6) + 7, 2, 2);
+        // Use cobble/tile floor from interior atlas
+        if (interior) {
+          const loungeCol = checker ? 19 : 18;
+          ctx.drawImage(interior, loungeCol * 16, 4 * 16, 16, 16, px, py, T, T);
+        } else {
+          ctx.fillStyle = checker ? '#3b6080' : '#345874';
+          ctx.fillRect(px, py, T, T);
+        }
         break;
       }
 
       case TILE_WALL: {
-        // Stone brick wall
-        ctx.fillStyle = '#1c2236';
-        ctx.fillRect(px, py, T, T);
-        ctx.fillStyle = '#252d44';
-        ctx.fillRect(px + 1, py + 1, T - 2, 6);
-        ctx.fillRect(px + 1, py + 9, T - 2, 6);
-        // Mortar lines
-        ctx.fillStyle = '#161c2e';
-        ctx.fillRect(px, py + 7, T, 2);
-        ctx.fillRect(px + (checker ? 5 : 11), py, 1, 7);
-        ctx.fillRect(px + (checker ? 11 : 5), py + 9, 1, 7);
-        // Top highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.fillRect(px + 1, py + 1, T - 2, 1);
+        // Use wall tiles from interior atlas — blue/purple stone walls
+        if (interior) {
+          const wallCol = checker ? 6 : 7;
+          ctx.drawImage(interior, wallCol * 16, 0, 16, 16, px, py, T, T);
+        } else {
+          ctx.fillStyle = '#1c2236';
+          ctx.fillRect(px, py, T, T);
+          ctx.fillStyle = '#252d44';
+          ctx.fillRect(px + 1, py + 1, T - 2, 6);
+          ctx.fillRect(px + 1, py + 9, T - 2, 6);
+          ctx.fillStyle = '#161c2e';
+          ctx.fillRect(px, py + 7, T, 2);
+        }
         break;
       }
 
       case TILE_OUTDOOR: {
-        // Grass with variation
-        const baseG = checker ? 62 : 56;
-        const gVar = Math.floor(r1 * 12) - 6;
-        ctx.fillStyle = `rgb(${45 + gVar}, ${baseG + gVar}, ${38 + gVar})`;
-        ctx.fillRect(px, py, T, T);
-        // Grass tufts
-        if (r2 > 0.6) {
-          ctx.fillStyle = 'rgba(80,140,70,0.35)';
-          ctx.fillRect(px + Math.floor(r1 * 10) + 2, py + Math.floor(r3 * 8) + 3, 1, 3);
-          ctx.fillRect(px + Math.floor(r3 * 8) + 5, py + Math.floor(r2 * 6) + 6, 1, 2);
-        }
-        // Dirt speck
-        if (r3 > 0.8) {
-          ctx.fillStyle = 'rgba(90,70,40,0.2)';
-          ctx.fillRect(px + Math.floor(r2 * 12) + 1, py + Math.floor(r1 * 12) + 1, 2, 2);
-        }
-        // Occasional flower
-        if (r1 > 0.92 && r2 > 0.5) {
-          ctx.fillStyle = r3 > 0.5 ? '#e8c84a' : '#d66b8f';
-          ctx.fillRect(px + Math.floor(r3 * 10) + 3, py + Math.floor(r2 * 8) + 4, 2, 2);
+        // Use outdoor tiles from street atlas — grass and cobble paths
+        if (street) {
+          // Bottom area of Walls_street has grass/cobble cells
+          const grassCol = checker ? 0 : 1;
+          const grassRow = 8;
+          ctx.drawImage(street, grassCol * 16, grassRow * 16, 16, 16, px, py, T, T);
+        } else {
+          const baseG = checker ? 62 : 56;
+          const gVar = Math.floor(r1 * 12) - 6;
+          ctx.fillStyle = `rgb(${45 + gVar}, ${baseG + gVar}, ${38 + gVar})`;
+          ctx.fillRect(px, py, T, T);
+          if (r2 > 0.6) {
+            ctx.fillStyle = 'rgba(80,140,70,0.35)';
+            ctx.fillRect(px + Math.floor(r1 * 10) + 2, py + Math.floor(r3 * 8) + 3, 1, 3);
+          }
         }
         break;
       }
 
       case TILE_WATER: {
-        // Animated water
+        // Animated water — keep programmatic since no water atlas
         const waveOff = Math.sin((x * 0.8 + y * 0.5) + performance.now() / 1200) * 0.12;
         const baseBlue = checker ? 80 : 72;
         ctx.fillStyle = `rgb(${35 + Math.floor(waveOff * 20)}, ${55 + Math.floor(waveOff * 15)}, ${baseBlue + Math.floor(waveOff * 25)})`;
         ctx.fillRect(px, py, T, T);
-        // Wave highlight
         const waveX = Math.floor(Math.sin((x * 1.3 + performance.now() / 800)) * 4 + 6);
         ctx.fillStyle = 'rgba(120,180,220,0.2)';
         ctx.fillRect(px + waveX, py + 4, 4, 1);
         ctx.fillRect(px + (T - waveX - 2), py + 10, 3, 1);
-        // Depth gradient
         ctx.fillStyle = 'rgba(0,10,30,0.1)';
         ctx.fillRect(px, py + T - 3, T, 3);
         break;
       }
 
       default: {
-        ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
-        ctx.fillRect(px, py, T, T);
+        if (interior) {
+          ctx.drawImage(interior, 20 * 16, 5 * 16, 16, 16, px, py, T, T);
+        } else {
+          ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
+          ctx.fillRect(px, py, T, T);
+        }
         break;
       }
     }

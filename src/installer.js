@@ -70,8 +70,9 @@ const PANEL_REMOTE_BASES = [
   'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/master/ide/vscode-kd-pixel-panel',
 ];
 const PANEL_UPSTREAM_WEBVIEW_BASE = 'https://raw.githubusercontent.com/pablodelucca/pixel-agents/main/webview-ui/public';
-const PANEL_MIN_VERSION = '0.3.3';
+const PANEL_MIN_VERSION = '0.3.5';
 const PANEL_LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v4';
+const PANEL_MIN_WEBVIEW_JS_BYTES = 305000;
 
 function normalizeToolName(tool) {
   const value = String(tool || '').trim().toLowerCase();
@@ -142,10 +143,12 @@ function readPanelBundleInfo(panelDir) {
   const info = {
     version: '0.0.0',
     extensionBytes: 0,
+    webviewJsBytes: 0,
     layoutBytes: 0,
     layoutValid: false,
     layoutFurnitureCount: 0,
     hasExpectedLayoutStateKey: false,
+    hasFreshWebviewBundle: false,
     fresh: false,
   };
 
@@ -191,8 +194,23 @@ function readPanelBundleInfo(panelDir) {
     }
   }
 
+  const assetsDir = path.join(panelDir, 'dist', 'webview', 'assets');
+  if (fs.existsSync(assetsDir)) {
+    const jsCandidates = fs.readdirSync(assetsDir)
+      .filter((name) => /^index-.*\.js$/i.test(name))
+      .map((name) => path.join(assetsDir, name));
+    if (jsCandidates.length > 0) {
+      const largest = jsCandidates
+        .map((fullPath) => fs.statSync(fullPath).size)
+        .sort((a, b) => b - a)[0];
+      info.webviewJsBytes = largest;
+      info.hasFreshWebviewBundle = largest >= PANEL_MIN_WEBVIEW_JS_BYTES;
+    }
+  }
+
   info.fresh = compareSemver(info.version, PANEL_MIN_VERSION) >= 0
     && info.hasExpectedLayoutStateKey
+    && info.hasFreshWebviewBundle
     && info.layoutValid;
 
   return info;
@@ -961,7 +979,7 @@ async function install(args) {
     let panelInfo = readPanelBundleInfo(panelDest);
     if (!panelInfo.fresh) {
       showWarning(
-        `Native panel bundle looks stale (version=${panelInfo.version}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount}). Attempting remote sync...`
+        `Native panel bundle looks stale (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount}). Attempting remote sync...`
       );
       let synced = false;
       for (const base of PANEL_REMOTE_BASES) {
@@ -975,7 +993,7 @@ async function install(args) {
             break;
           }
           showWarning(
-            `Remote sync from ${base} still stale (version=${panelInfo.version}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
+            `Remote sync from ${base} still stale (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
           );
         } catch (err) {
           showWarning(`Remote panel sync failed (${base}): ${err && err.message ? err.message : String(err)}`);
@@ -994,7 +1012,7 @@ async function install(args) {
             synced = true;
           } else {
             showWarning(
-              `Upstream fallback completed but bundle still not fresh (version=${panelInfo.version}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
+              `Upstream fallback completed but bundle still not fresh (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
             );
           }
         } catch (err) {

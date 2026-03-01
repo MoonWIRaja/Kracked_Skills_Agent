@@ -1,11 +1,13 @@
 ﻿const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const MAX_EVENTS = 600;
 const VIEW_ID = 'kdPixel.panelView';
 const LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v4';
 const LEGACY_LAYOUT_STATE_KEYS = ['kdPixel.officeLayout.v3', 'kdPixel.officeLayout.v2'];
+const LAYOUT_BUNDLE_SIG_KEY = 'kdPixel.layoutBundleSig';
 const AGENT_ID_MAP_KEY = 'kdPixel.agentIdByKey';
 const NEXT_AGENT_ID_KEY = 'kdPixel.nextAgentNumericId';
 const AGENT_SEATS_KEY = 'kdPixel.agentSeats';
@@ -402,10 +404,16 @@ class KDPanelViewProvider {
 
   async migrateLayoutStateIfNeeded() {
     const current = this.context.workspaceState.get(LAYOUT_STATE_KEY);
-    if (isValidLayout(current)) return;
+    const bundleSig = getBundledLayoutSignature(this.context.extensionPath);
+    const savedSig = this.context.workspaceState.get(LAYOUT_BUNDLE_SIG_KEY);
+    const needsReset = !isValidLayout(current) || !savedSig || savedSig !== bundleSig;
 
-    const layout = loadBundledDefaultLayout(this.context.extensionPath);
-    await this.context.workspaceState.update(LAYOUT_STATE_KEY, layout);
+    if (needsReset) {
+      const layout = loadBundledDefaultLayout(this.context.extensionPath);
+      await this.context.workspaceState.update(LAYOUT_STATE_KEY, layout);
+    }
+    await this.context.workspaceState.update(LAYOUT_BUNDLE_SIG_KEY, bundleSig);
+
     for (const key of LEGACY_LAYOUT_STATE_KEYS) {
       const legacy = this.context.workspaceState.get(key);
       if (legacy !== undefined) {
@@ -451,6 +459,17 @@ function isValidLayout(layout) {
   if (!tiles || !furniture) return false;
   if (tiles.length !== cols * rows) return false;
   return true;
+}
+
+function getBundledLayoutSignature(extensionPath) {
+  const layoutPath = path.join(extensionPath, 'dist', 'webview', 'assets', 'default-layout.json');
+  if (!fs.existsSync(layoutPath)) return 'missing-layout';
+  try {
+    const raw = fs.readFileSync(layoutPath, 'utf8');
+    return crypto.createHash('sha1').update(raw).digest('hex').slice(0, 16);
+  } catch {
+    return 'unreadable-layout';
+  }
 }
 
 function readEvents(eventsPath) {

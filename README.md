@@ -296,7 +296,7 @@ Then in command palette run:
 KD Pixel: Reset Office Layout
 ```
 
-If still old, confirm extension version is `0.4.1` or newer.
+If still old, confirm extension version is `0.4.2` or newer.
 Then fully reinstall panel (this rebuilds `kd-asset-pack` from `Assets.zip`):
 
 ```bash

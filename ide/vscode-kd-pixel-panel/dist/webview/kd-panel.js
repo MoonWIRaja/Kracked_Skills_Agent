@@ -1,17 +1,29 @@
 (() => {
   const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
-  const DIST_BASE = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_DIST_BASE__ === 'string')
-    ? window.__KD_WEBVIEW_DIST_BASE__
-    : '.';
-  const ASSET_BASE = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_ASSET_BASE__ === 'string')
-    ? window.__KD_WEBVIEW_ASSET_BASE__
-    : './kd-asset-pack';
-  const CATALOG_URI = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_CATALOG__ === 'string')
-    ? window.__KD_WEBVIEW_CATALOG__
-    : null;
-  const MANIFEST_URI = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_MANIFEST__ === 'string')
-    ? window.__KD_WEBVIEW_MANIFEST__
-    : null;
+  function normalizeInjectedValue(value, fallback = null) {
+    if (typeof value !== 'string') return fallback;
+    const raw = value.trim();
+    if (!raw) return fallback;
+    if (/^__KD_[A-Z0-9_]+__$/.test(raw)) return fallback;
+    return raw;
+  }
+
+  const DIST_BASE = normalizeInjectedValue(
+    (typeof window !== 'undefined' ? window.__KD_WEBVIEW_DIST_BASE__ : null),
+    '.'
+  );
+  const ASSET_BASE = normalizeInjectedValue(
+    (typeof window !== 'undefined' ? window.__KD_WEBVIEW_ASSET_BASE__ : null),
+    './kd-asset-pack'
+  );
+  const CATALOG_URI = normalizeInjectedValue(
+    (typeof window !== 'undefined' ? window.__KD_WEBVIEW_CATALOG__ : null),
+    null
+  );
+  const MANIFEST_URI = normalizeInjectedValue(
+    (typeof window !== 'undefined' ? window.__KD_WEBVIEW_MANIFEST__ : null),
+    null
+  );
 
   const canvas = document.getElementById('kdCanvas');
   const ctx = canvas.getContext('2d', { alpha: true });

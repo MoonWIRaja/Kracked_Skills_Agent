@@ -340,6 +340,15 @@ function mimeType(filePath) {
   }
 }
 
+function injectWebPlaceholders(htmlText) {
+  const html = String(htmlText || '');
+  return html
+    .replace(/__KD_DIST_BASE__/g, '.')
+    .replace(/__KD_ASSET_BASE__/g, './kd-asset-pack')
+    .replace(/__KD_CATALOG_URI__/g, './kd-asset-pack/catalog.json')
+    .replace(/__KD_MANIFEST_URI__/g, './kd-asset-pack/manifest.json');
+}
+
 function safeStaticPath(rootDir, requestPath) {
   const clean = String(requestPath || '/').split('?')[0].split('#')[0];
   const rel = clean === '/' ? 'index.html' : clean.replace(/^\/+/, '');
@@ -471,7 +480,10 @@ async function main() {
     }
 
     try {
-      const data = fs.readFileSync(staticFile);
+      let data = fs.readFileSync(staticFile);
+      if (/index\.html$/i.test(staticFile)) {
+        data = Buffer.from(injectWebPlaceholders(data.toString('utf8')), 'utf8');
+      }
       res.writeHead(200, {
         'Content-Type': mimeType(staticFile),
         'Cache-Control': /\.json$/i.test(staticFile) ? 'no-store' : 'public, max-age=300',

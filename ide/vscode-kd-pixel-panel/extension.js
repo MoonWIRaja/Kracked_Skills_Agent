@@ -406,7 +406,11 @@ class KDPanelViewProvider {
     const current = this.context.workspaceState.get(LAYOUT_STATE_KEY);
     const bundleSig = getBundledLayoutSignature(this.context.extensionPath);
     const savedSig = this.context.workspaceState.get(LAYOUT_BUNDLE_SIG_KEY);
-    const needsReset = !isValidLayout(current) || !savedSig || savedSig !== bundleSig;
+    const currentFurnitureCount = countLayoutFurniture(current);
+    const needsReset = !isValidLayout(current)
+      || !savedSig
+      || savedSig !== bundleSig
+      || currentFurnitureCount < 20;
 
     if (needsReset) {
       const layout = loadBundledDefaultLayout(this.context.extensionPath);
@@ -459,6 +463,12 @@ function isValidLayout(layout) {
   if (!tiles || !furniture) return false;
   if (tiles.length !== cols * rows) return false;
   return true;
+}
+
+function countLayoutFurniture(layout) {
+  if (!layout || typeof layout !== 'object') return 0;
+  const furniture = Array.isArray(layout.furniture) ? layout.furniture : [];
+  return furniture.length;
 }
 
 function getBundledLayoutSignature(extensionPath) {

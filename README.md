@@ -301,8 +301,8 @@ Then in command palette run:
 KD Pixel: Reset Office Layout
 ```
 
-If still old, confirm extension version is `0.3.5` or newer.
-`0.3.5` keeps layout state key `kdPixel.officeLayout.v4`, auto-resets stale saved layout when bundled map changes, and requires fresh webview bundle size.
+If still old, confirm extension version is `0.3.6` or newer.
+`0.3.6` keeps layout state key `kdPixel.officeLayout.v4`, auto-resets stale saved layout when bundled map changes, and also resets unusually minimal saved layouts (e.g. accidental one-desk saves).
 If installer reports stale cached package, run:
 
 ```bash

@@ -6,7 +6,6 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const https = require('node:https');
 const { spawnSync } = require('node:child_process');
 const { showStep, showSuccess, showError, showWarning, showInfo, showDivider, c } = require('./display');
 const { SUPPORTED_IDES, generateAdapter, generateIDEConfig } = require('./adapters');
@@ -65,14 +64,9 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_REMOTE_BASES = [
-  'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/main/ide/vscode-kd-pixel-panel',
-  'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/master/ide/vscode-kd-pixel-panel',
-];
-const PANEL_UPSTREAM_WEBVIEW_BASE = 'https://raw.githubusercontent.com/pablodelucca/pixel-agents/main/webview-ui/public';
-const PANEL_MIN_VERSION = '0.3.7';
-const PANEL_LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v4';
-const PANEL_MIN_WEBVIEW_JS_BYTES = 305000;
+const PANEL_MIN_VERSION = '0.4.0';
+const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v5';
+const PANEL_MIN_WEBVIEW_JS_BYTES = 25000;
 
 function normalizeToolName(tool) {
   const value = String(tool || '').trim().toLowerCase();
@@ -144,11 +138,11 @@ function readPanelBundleInfo(panelDir) {
     version: '0.0.0',
     extensionBytes: 0,
     webviewJsBytes: 0,
-    layoutBytes: 0,
-    layoutValid: false,
-    layoutFurnitureCount: 0,
     hasExpectedLayoutStateKey: false,
     hasFreshWebviewBundle: false,
+    hasAssetBuilder: false,
+    hasAssetParts: false,
+    hasCoreWebviewFiles: false,
     fresh: false,
   };
 
@@ -171,169 +165,38 @@ function readPanelBundleInfo(panelDir) {
     info.hasExpectedLayoutStateKey = text.includes(PANEL_LAYOUT_STATE_KEY);
   }
 
-  const layoutPath = path.join(panelDir, 'dist', 'webview', 'assets', 'default-layout.json');
-  if (fs.existsSync(layoutPath)) {
-    info.layoutBytes = fs.statSync(layoutPath).size;
-    try {
-      const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
-      const cols = Number(layout && layout.cols);
-      const rows = Number(layout && layout.rows);
-      const tiles = Array.isArray(layout && layout.tiles) ? layout.tiles : [];
-      const furniture = Array.isArray(layout && layout.furniture) ? layout.furniture : [];
-      info.layoutFurnitureCount = furniture.length;
-      info.layoutValid = Number(layout && layout.version) === 1
-        && Number.isInteger(cols)
-        && Number.isInteger(rows)
-        && cols > 0
-        && rows > 0
-        && tiles.length === cols * rows
-        && furniture.length >= 20;
-    } catch {
-      info.layoutValid = false;
-      info.layoutFurnitureCount = 0;
-    }
+  const webviewJsPath = path.join(panelDir, 'dist', 'webview', 'kd-panel.js');
+  if (fs.existsSync(webviewJsPath)) {
+    info.webviewJsBytes = fs.statSync(webviewJsPath).size;
+    info.hasFreshWebviewBundle = info.webviewJsBytes >= PANEL_MIN_WEBVIEW_JS_BYTES;
   }
 
-  const assetsDir = path.join(panelDir, 'dist', 'webview', 'assets');
-  if (fs.existsSync(assetsDir)) {
-    const jsCandidates = fs.readdirSync(assetsDir)
-      .filter((name) => /^index-.*\.js$/i.test(name))
-      .map((name) => path.join(assetsDir, name));
-    if (jsCandidates.length > 0) {
-      const largest = jsCandidates
-        .map((fullPath) => fs.statSync(fullPath).size)
-        .sort((a, b) => b - a)[0];
-      info.webviewJsBytes = largest;
-      info.hasFreshWebviewBundle = largest >= PANEL_MIN_WEBVIEW_JS_BYTES;
-    }
+  info.hasAssetBuilder = fs.existsSync(path.join(panelDir, 'build-assets-from-zip.js'));
+
+  const requiredFiles = [
+    path.join(panelDir, 'dist', 'webview', 'index.html'),
+    path.join(panelDir, 'dist', 'webview', 'kd-panel.js'),
+    path.join(panelDir, 'dist', 'webview', 'kd-panel.css'),
+    path.join(panelDir, 'asset-pack', 'Assets.zip.part01'),
+    path.join(panelDir, 'asset-pack', 'Assets.zip.part02'),
+    path.join(panelDir, 'asset-pack', 'Assets.zip.part03'),
+  ];
+  info.hasCoreWebviewFiles = requiredFiles.every((filePath) => fs.existsSync(filePath));
+
+  const partDir = path.join(panelDir, 'asset-pack');
+  if (fs.existsSync(partDir)) {
+    const parts = fs.readdirSync(partDir).filter((name) => /^Assets\.zip\.part\d+$/i.test(name));
+    info.hasAssetParts = parts.length >= 3;
   }
 
   info.fresh = compareSemver(info.version, PANEL_MIN_VERSION) >= 0
     && info.hasExpectedLayoutStateKey
     && info.hasFreshWebviewBundle
-    && info.layoutValid;
+    && info.hasAssetBuilder
+    && info.hasAssetParts
+    && info.hasCoreWebviewFiles;
 
   return info;
-}
-
-function downloadUrlBuffer(url, redirects = 0) {
-  return new Promise((resolve, reject) => {
-    if (redirects > 4) {
-      reject(new Error('too many redirects'));
-      return;
-    }
-
-    const req = https.get(url, {
-      headers: {
-        'User-Agent': 'kracked-skills-agent-installer',
-        'Cache-Control': 'no-cache',
-      },
-    }, (res) => {
-      const status = res.statusCode || 0;
-      if ([301, 302, 307, 308].includes(status) && res.headers.location) {
-        res.resume();
-        downloadUrlBuffer(res.headers.location, redirects + 1).then(resolve).catch(reject);
-        return;
-      }
-
-      if (status < 200 || status >= 300) {
-        res.resume();
-        reject(new Error(`HTTP ${status}`));
-        return;
-      }
-
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-      res.on('error', reject);
-    });
-
-    req.setTimeout(8000, () => {
-      req.destroy(new Error('request timeout'));
-    });
-
-    req.on('error', reject);
-  });
-}
-
-function parseAssetRefsFromIndexHtml(indexHtml) {
-  const refs = new Set();
-  const regex = /(src|href)="\.\/assets\/([^"]+)"/g;
-  let match = regex.exec(indexHtml);
-  while (match) {
-    refs.add(`dist/webview/assets/${match[2]}`);
-    match = regex.exec(indexHtml);
-  }
-  return [...refs];
-}
-
-async function syncPanelBundleFromRemoteBase(remoteBase, panelDest) {
-  const tmpDir = `${panelDest}.__remote_sync`;
-  removeDirRecursive(tmpDir);
-  fs.mkdirSync(tmpDir, { recursive: true });
-
-  const staticFiles = [
-    'package.json',
-    'extension.js',
-    'README.md',
-    'LICENSE',
-    'THIRD_PARTY_NOTICES.md',
-    'dist/webview/index.html',
-    'dist/webview/Screenshot.jpg',
-    'dist/webview/characters.png',
-    'dist/webview/assets/default-layout.json',
-    'dist/webview/assets/walls.png',
-    'dist/webview/assets/FSPixelSansUnicode-Regular-D9-dh-Uo.ttf',
-    'dist/webview/assets/characters/char_0.png',
-    'dist/webview/assets/characters/char_1.png',
-    'dist/webview/assets/characters/char_2.png',
-    'dist/webview/assets/characters/char_3.png',
-    'dist/webview/assets/characters/char_4.png',
-    'dist/webview/assets/characters/char_5.png',
-  ];
-
-  const indexUrl = `${remoteBase}/dist/webview/index.html`;
-  const indexBuffer = await downloadUrlBuffer(indexUrl);
-  const indexHtml = indexBuffer.toString('utf8');
-  const dynamicAssetFiles = parseAssetRefsFromIndexHtml(indexHtml);
-
-  const files = [...new Set([...staticFiles, ...dynamicAssetFiles])];
-
-  for (const rel of files) {
-    const url = `${remoteBase}/${rel}`;
-    const data = rel === 'dist/webview/index.html' ? indexBuffer : await downloadUrlBuffer(url);
-    const dest = path.join(tmpDir, ...rel.split('/'));
-    ensureDirRecursive(path.dirname(dest));
-    fs.writeFileSync(dest, data);
-  }
-
-  removeDirRecursive(panelDest);
-  fs.renameSync(tmpDir, panelDest);
-  return { ok: true, files: files.length, source: remoteBase };
-}
-
-async function syncPanelAssetsFromUpstream(panelDest) {
-  const upstreamFiles = [
-    ['characters.png', 'dist/webview/characters.png'],
-    ['assets/default-layout.json', 'dist/webview/assets/default-layout.json'],
-    ['assets/walls.png', 'dist/webview/assets/walls.png'],
-    ['assets/characters/char_0.png', 'dist/webview/assets/characters/char_0.png'],
-    ['assets/characters/char_1.png', 'dist/webview/assets/characters/char_1.png'],
-    ['assets/characters/char_2.png', 'dist/webview/assets/characters/char_2.png'],
-    ['assets/characters/char_3.png', 'dist/webview/assets/characters/char_3.png'],
-    ['assets/characters/char_4.png', 'dist/webview/assets/characters/char_4.png'],
-    ['assets/characters/char_5.png', 'dist/webview/assets/characters/char_5.png'],
-  ];
-
-  for (const [upstreamRel, localRel] of upstreamFiles) {
-    const url = `${PANEL_UPSTREAM_WEBVIEW_BASE}/${upstreamRel}`;
-    const data = await downloadUrlBuffer(url);
-    const dest = path.join(panelDest, ...localRel.split('/'));
-    ensureDirRecursive(path.dirname(dest));
-    fs.writeFileSync(dest, data);
-  }
-
-  return { ok: true, files: upstreamFiles.length, source: PANEL_UPSTREAM_WEBVIEW_BASE };
 }
 
 function applyPanelHotfixes(panelDest) {
@@ -344,6 +207,7 @@ function applyPanelHotfixes(panelDest) {
   if (content.includes(PANEL_LAYOUT_STATE_KEY)) return { changed: false };
 
   const updated = content
+    .replace(/kdPixel\.officeLayout\.v4/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.officeLayout\.v2/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.officeLayout\.v3/g, PANEL_LAYOUT_STATE_KEY);
   if (updated !== content) {
@@ -364,6 +228,9 @@ if not exist "%PANEL_DIR%\\package.json" (
 )
 cd /d "%PANEL_DIR%"
 del /q *.vsix >nul 2>&1
+echo [KD] Rebuilding panel assets from Assets.zip...
+call node "%PANEL_DIR%\\build-assets-from-zip.js" --workspace "%~dp0"
+if errorlevel 1 exit /b 1
 echo [KD] Packaging VS Code panel extension...
 call npx @vscode/vsce package
 if errorlevel 1 exit /b 1
@@ -391,6 +258,8 @@ if (-not (Test-Path (Join-Path $panelDir "package.json"))) {
 
 Set-Location $panelDir
 Get-ChildItem -Path $panelDir -Filter *.vsix -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Write-Host "[KD] Rebuilding panel assets from Assets.zip..."
+node (Join-Path $panelDir "build-assets-from-zip.js") --workspace $PSScriptRoot
 Write-Host "[KD] Packaging VS Code panel extension..."
 npx @vscode/vsce package
 
@@ -500,6 +369,31 @@ function formatRunError(result) {
   return `exit code ${result.status}`;
 }
 
+function runPanelAssetBuild(panelDir, workspaceDir) {
+  const builderScript = path.join(panelDir, 'build-assets-from-zip.js');
+  if (!fs.existsSync(builderScript)) {
+    return {
+      ok: false,
+      reason: 'build-assets-from-zip.js not found',
+    };
+  }
+
+  const args = [builderScript];
+  if (workspaceDir) {
+    args.push('--workspace', workspaceDir);
+  }
+
+  const buildResult = runCommand(panelDir, 'node', args);
+  if (buildResult.status !== 0) {
+    return {
+      ok: false,
+      reason: `Asset build failed (${formatRunError(buildResult)})`,
+    };
+  }
+
+  return { ok: true };
+}
+
 function tryInstallNativePanel(targetDir) {
   const panelDir = path.join(targetDir, '.kracked', 'tools', 'vscode-kd-pixel-panel');
   const packageJsonPath = path.join(panelDir, 'package.json');
@@ -507,6 +401,14 @@ function tryInstallNativePanel(targetDir) {
     return {
       ok: false,
       reason: `Native panel folder not found: ${panelDir}`,
+    };
+  }
+
+  const buildResult = runPanelAssetBuild(panelDir, targetDir);
+  if (!buildResult.ok) {
+    return {
+      ok: false,
+      reason: buildResult.reason,
     };
   }
 
@@ -974,59 +876,16 @@ async function install(args) {
     copyDirRecursive(panelSrc, panelDest);
     const hotfixResult = applyPanelHotfixes(panelDest);
     if (hotfixResult.changed) {
-      showInfo('Applied panel layout-state hotfix (v4)');
+      showInfo('Applied panel runtime hotfixes');
     }
-    let panelInfo = readPanelBundleInfo(panelDest);
-    if (!panelInfo.fresh) {
-      showWarning(
-        `Native panel bundle looks stale (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount}). Attempting remote sync...`
-      );
-      let synced = false;
-      for (const base of PANEL_REMOTE_BASES) {
-        try {
-          const syncResult = await syncPanelBundleFromRemoteBase(base, panelDest);
-          applyPanelHotfixes(panelDest);
-          panelInfo = readPanelBundleInfo(panelDest);
-          if (panelInfo.fresh) {
-            showSuccess(`Native panel synced from ${base} (${syncResult.files} files, version=${panelInfo.version})`);
-            synced = true;
-            break;
-          }
-          showWarning(
-            `Remote sync from ${base} still stale (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
-          );
-        } catch (err) {
-          showWarning(`Remote panel sync failed (${base}): ${err && err.message ? err.message : String(err)}`);
-        }
-      }
-
-      if (!synced) {
-        try {
-          const upstreamResult = await syncPanelAssetsFromUpstream(panelDest);
-          applyPanelHotfixes(panelDest);
-          panelInfo = readPanelBundleInfo(panelDest);
-          if (panelInfo.fresh) {
-            showSuccess(
-              `Native panel recovered from upstream assets (${upstreamResult.files} files, version=${panelInfo.version})`
-            );
-            synced = true;
-          } else {
-            showWarning(
-              `Upstream fallback completed but bundle still not fresh (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
-            );
-          }
-        } catch (err) {
-          showWarning(`Upstream fallback sync failed: ${err && err.message ? err.message : String(err)}`);
-        }
-      }
-
-      if (!synced) {
-        showInfo(
-          'If this persists, use explicit ref and clear npm cache: npx github:MoonWIRaja/Kracked_Skills_Agent#main install'
-        );
-      }
-    } else {
+    const panelInfo = readPanelBundleInfo(panelDest);
+    if (panelInfo.fresh) {
       showSuccess(`Native panel bundle ready (version=${panelInfo.version})`);
+    } else {
+      showWarning(
+        `Native panel bundle missing required files (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, parts=${panelInfo.hasAssetParts ? 'ok' : 'missing'})`
+      );
+      showInfo('Asset pack will be rebuilt automatically when you run kd-panel-install or kd-panel-web.');
     }
     showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install + kd-panel-tui + kd-panel-web scripts created');
   } else {

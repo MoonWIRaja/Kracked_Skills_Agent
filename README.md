@@ -32,10 +32,7 @@ Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
 npx github:MoonWIRaja/Kracked_Skills_Agent install
 ```
 
-If your local `npx` cache is stale, installer auto-validates the native panel bundle and tries self-sync in this order:
-1. GitHub repo `main`
-2. GitHub repo `master`
-3. upstream pixel-agents webview assets fallback
+Installer now validates the bundled panel files locally and rebuilds visual assets from `Assets.zip` during panel install/package.
 
 ### Install (Non-Interactive)
 
@@ -92,14 +89,12 @@ KD supports 3 observer modes.
 ### 1. Native Panel (VS Code Family)
 
 For VS Code / Cursor / Windsurf.
-Now uses **upstream pixel-agents style panel UI** (bundled office map + sprite runtime) with KD event mapping.
-Bundled sprite assets are aligned to upstream pixel-agents visuals for a closer 1:1 look.
+Now uses **KD RPG WORLD panel runtime** with map/props/sprites rebuilt from your `Assets.zip`.
 You can also:
 
-1. Edit office layout (drag desks, reading zone, waiting zone)
-2. Assign seats (click agent, then click desk)
-3. Spawn delegation sub-agent activity when event has `target_agent_id`
-4. Auto-synthesize professional agents from KD task command (supports command args like `kd-dev-story story-1`)
+1. Visualize main agent + professional agents from live KD events
+2. Show delegated professional-agent activity when main agent delegates
+3. Use the exact same renderer in native panel and web mirror
 
 Install extension from project root:
 
@@ -127,7 +122,7 @@ Attribution: pixel-agents UI style by Pablo De Lucca (MIT).
 ### 2. Web Mirror (Recommended for Antigravity)
 
 Visual browser panel that reads the same KD events stream.
-Default scene is now **KD RPG WORLD** (Guild Command + Dark Ops + Wild Frontier) with main-agent delegation synthesis.
+Web mirror now serves the exact same frontend bundle as native panel (same map + same assets).
 
 ```bash
 kd-panel-web.bat
@@ -286,7 +281,7 @@ Check:
 2. You are running from project root
 3. `.kracked/tools/vscode-kd-pixel-panel` exists
 
-### Pixel art still looks old / not like upstream
+### Pixel panel still looks old
 
 Run a forced reinstall and reset layout:
 
@@ -301,12 +296,11 @@ Then in command palette run:
 KD Pixel: Reset Office Layout
 ```
 
-If still old, confirm extension version is `0.3.7` or newer.
-`0.3.7` enforces canonical bundled layout on startup (hard reset when saved layout differs), preventing old/edited cache from overriding official assets.
-If installer reports stale cached package, run:
+If still old, confirm extension version is `0.4.0` or newer.
+Then fully reinstall panel (this rebuilds `kd-asset-pack` from `Assets.zip`):
 
 ```bash
-npx github:MoonWIRaja/Kracked_Skills_Agent#main install
+kd-panel-install.bat
 ```
 
 ### Antigravity but panel tidak muncul

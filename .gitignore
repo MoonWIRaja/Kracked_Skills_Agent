@@ -3,9 +3,13 @@ node_modules/
 dist/
 !ide/vscode-kd-pixel-panel/dist/
 !ide/vscode-kd-pixel-panel/dist/**
+ide/vscode-kd-pixel-panel/dist/webview/kd-asset-pack/
+ide/vscode-kd-pixel-panel/dist/webview/assets/
+ide/vscode-kd-pixel-panel/*.vsix
 *.db
 .env
 .env.local
+Assets.zip
 .DS_Store
 Thumbs.db
 *.log

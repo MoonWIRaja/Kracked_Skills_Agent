@@ -1,22 +1,24 @@
 # KD Pixel Panel (VS Code Family)
 
-Native IDE panel that reads KD event stream from:
+Native KD observer panel that renders a pixel world from project events:
 
-- `.kracked/runtime/events.jsonl`
+- Event stream: `.kracked/runtime/events.jsonl`
+- Asset source: `Assets.zip` (or split parts in `asset-pack/`)
 
-This panel now uses the **upstream pixel-agents webview bundle style** (office map, sprites, edit mode UI) and maps KD events into that runtime.
+This panel now runs the KD RPG world renderer and rebuilds its visual bundle from your asset pack.
 
-## Install Extension (Local)
+## Local Build / Package
 
 ```bash
 cd ide/vscode-kd-pixel-panel
+node build-assets-from-zip.js --workspace ../..
 npx @vscode/vsce package
 ```
 
-Install:
+Install VSIX:
 
 ```bash
-code --install-extension kd-pixel-panel-0.3.7.vsix
+code --install-extension kd-pixel-panel-0.4.0.vsix --force
 ```
 
 ## Open Panel
@@ -24,18 +26,14 @@ code --install-extension kd-pixel-panel-0.3.7.vsix
 - Panel container: `KD Pixel`
 - View: `Pixel Observer`
 - Command fallback: `KD Pixel: Show Panel`
-- Reset command: `KD Pixel: Reset Office Layout`
 
 ## Notes
 
-- KD runs this panel in **observer mode** (event-driven visualization).
-- Agent movement/status is derived from KD event stream.
-- Layout save/import/export is supported in panel UI.
+- Observer mode only (driven by KD events).
+- Main agent + professional agents are rendered from event activity/delegation.
+- Web mirror and native panel share the same frontend bundle.
 
 ## Attribution
 
-Bundled UI style is derived from:
-
-- https://github.com/pablodelucca/pixel-agents (MIT)
-
+Visual assets are loaded from user-provided pack during build.
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

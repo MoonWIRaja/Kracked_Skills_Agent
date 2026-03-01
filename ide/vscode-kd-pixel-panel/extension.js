@@ -5,8 +5,8 @@ const crypto = require('crypto');
 
 const MAX_EVENTS = 600;
 const VIEW_ID = 'kdPixel.panelView';
-const LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v4';
-const LEGACY_LAYOUT_STATE_KEYS = ['kdPixel.officeLayout.v3', 'kdPixel.officeLayout.v2'];
+const LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v5';
+const LEGACY_LAYOUT_STATE_KEYS = ['kdPixel.officeLayout.v4', 'kdPixel.officeLayout.v3', 'kdPixel.officeLayout.v2'];
 const LAYOUT_BUNDLE_SIG_KEY = 'kdPixel.layoutBundleSig';
 const AGENT_ID_MAP_KEY = 'kdPixel.agentIdByKey';
 const NEXT_AGENT_ID_KEY = 'kdPixel.nextAgentNumericId';
@@ -191,6 +191,7 @@ class KDPanelViewProvider {
         type: 'existingAgents',
         agents: bootstrapState.ids,
         agentMeta: bootstrapState.agentMeta,
+        agentIdentity: bootstrapState.agentIdentity,
         folderNames: bootstrapState.folderNames,
       });
     }
@@ -318,6 +319,16 @@ class KDPanelViewProvider {
         id: numericId,
         status: waiting ? 'waiting' : 'active',
       });
+
+      webview.postMessage({
+        type: 'agentPulse',
+        id: numericId,
+        agentName: String(event.agent_name || agentKey),
+        role: String(event.role || 'Professional Agent'),
+        action: String(event.action || ''),
+        task: String(event.task || ''),
+        message: String(event.message || ''),
+      });
     }
   }
 
@@ -331,6 +342,7 @@ class KDPanelViewProvider {
     const ids = [];
     const folderNames = {};
     const agentMeta = {};
+    const agentIdentity = {};
     const seats = this.context.workspaceState.get(AGENT_SEATS_KEY, {});
 
     for (const event of latest) {
@@ -344,6 +356,11 @@ class KDPanelViewProvider {
       const hueShift = Number.isInteger(seatMeta && seatMeta.hueShift) ? seatMeta.hueShift : 0;
       const seatId = seatMeta && typeof seatMeta.seatId === 'string' ? seatMeta.seatId : null;
       agentMeta[numericId] = { palette, hueShift, seatId };
+      agentIdentity[numericId] = {
+        id: agentKey,
+        name: String(event.agent_name || agentKey),
+        role: String(event.role || 'Professional Agent'),
+      };
     }
 
     return {
@@ -351,6 +368,7 @@ class KDPanelViewProvider {
       ids: ids.sort((a, b) => a - b),
       folderNames,
       agentMeta,
+      agentIdentity,
     };
   }
 
@@ -436,22 +454,14 @@ class KDPanelViewProvider {
 }
 
 function loadBundledDefaultLayout(extensionPath) {
-  const layoutPath = path.join(extensionPath, 'dist', 'webview', 'assets', 'default-layout.json');
-  if (fs.existsSync(layoutPath)) {
-    try {
-      const raw = fs.readFileSync(layoutPath, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (isValidLayout(parsed)) return parsed;
-    } catch {
-      // fall through
-    }
-  }
-
+  const cols = 52;
+  const rows = 32;
+  const tiles = new Array(cols * rows).fill('floor');
   return {
     version: 1,
-    cols: 20,
-    rows: 11,
-    tiles: [],
+    cols,
+    rows,
+    tiles,
     furniture: [],
   };
 }
@@ -505,14 +515,7 @@ function getLayoutFingerprint(layout) {
 }
 
 function getBundledLayoutSignature(extensionPath) {
-  const layoutPath = path.join(extensionPath, 'dist', 'webview', 'assets', 'default-layout.json');
-  if (!fs.existsSync(layoutPath)) return 'missing-layout';
-  try {
-    const raw = fs.readFileSync(layoutPath, 'utf8');
-    return crypto.createHash('sha1').update(raw).digest('hex').slice(0, 16);
-  } catch {
-    return 'unreadable-layout';
-  }
+  return 'kd-rpg-world-layout-v1';
 }
 
 function readEvents(eventsPath) {

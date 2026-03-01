@@ -2,13 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>webview-ui</title>
-    <script type="module" crossorigin src="./assets/index-CgVMlgSL.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CDgABIYG.css">
+    <title>KD Pixel Panel</title>
+    <link rel="stylesheet" href="./kd-panel.css" />
   </head>
   <body>
-    <div id="root"></div>
+    <div class="kd-root">
+      <section class="kd-stage">
+        <canvas id="kdCanvas"></canvas>
+        <div class="kd-controls">
+          <button id="zoomIn" class="kd-btn">+</button>
+          <button id="zoomOut" class="kd-btn">-</button>
+        </div>
+        <div class="kd-badge">KD RPG WORLD • Asset Pack Runtime</div>
+      </section>
+      <aside class="kd-side">
+        <div class="kd-box">
+          <h3>System</h3>
+          <p>Status: <strong id="kdStatus">Loading...</strong></p>
+          <p>Agents: <strong id="kdAgents">0</strong></p>
+          <p>Assets: <strong id="kdAssets">0</strong></p>
+          <p>Updated: <strong id="kdUpdated">-</strong></p>
+        </div>
+        <div class="kd-box">
+          <h3>Agents</h3>
+          <div id="kdAgentList" class="kd-list"></div>
+        </div>
+        <div class="kd-box">
+          <h3>Events</h3>
+          <div id="kdEventList" class="kd-list"></div>
+        </div>
+      </aside>
+    </div>
+    <script src="./kd-panel.js"></script>
   </body>
 </html>

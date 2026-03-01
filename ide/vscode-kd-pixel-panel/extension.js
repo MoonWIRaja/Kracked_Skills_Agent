@@ -98,7 +98,11 @@ class KDPanelViewProvider {
     this.lastSignatureById.clear();
     await this.migrateLayoutStateIfNeeded();
 
-    this.view.webview.options = { enableScripts: true };
+    const distPath = path.join(this.context.extensionPath, 'dist', 'webview');
+    this.view.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.file(distPath)],
+    };
     this.view.webview.html = this.getWebviewHtml();
 
     this.view.onDidDispose(() => {
@@ -213,6 +217,22 @@ class KDPanelViewProvider {
       const fileUri = vscode.Uri.file(path.join(distPath, relPath));
       return `${attr}="${webview.asWebviewUri(fileUri)}"`;
     });
+
+    const distBaseUri = webview.asWebviewUri(vscode.Uri.file(distPath)).toString().replace(/\/+$/, '');
+    const assetBaseUri = webview
+      .asWebviewUri(vscode.Uri.file(path.join(distPath, 'kd-asset-pack')))
+      .toString()
+      .replace(/\/+$/, '');
+    const catalogUri = webview.asWebviewUri(vscode.Uri.file(path.join(distPath, 'kd-asset-pack', 'catalog.json'))).toString();
+    const manifestUri = webview
+      .asWebviewUri(vscode.Uri.file(path.join(distPath, 'kd-asset-pack', 'manifest.json')))
+      .toString();
+
+    html = html
+      .replace(/__KD_DIST_BASE__/g, distBaseUri)
+      .replace(/__KD_ASSET_BASE__/g, assetBaseUri)
+      .replace(/__KD_CATALOG_URI__/g, catalogUri)
+      .replace(/__KD_MANIFEST_URI__/g, manifestUri);
 
     return html;
   }

@@ -1,5 +1,17 @@
 (() => {
   const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
+  const DIST_BASE = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_DIST_BASE__ === 'string')
+    ? window.__KD_WEBVIEW_DIST_BASE__
+    : '.';
+  const ASSET_BASE = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_ASSET_BASE__ === 'string')
+    ? window.__KD_WEBVIEW_ASSET_BASE__
+    : './kd-asset-pack';
+  const CATALOG_URI = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_CATALOG__ === 'string')
+    ? window.__KD_WEBVIEW_CATALOG__
+    : null;
+  const MANIFEST_URI = (typeof window !== 'undefined' && typeof window.__KD_WEBVIEW_MANIFEST__ === 'string')
+    ? window.__KD_WEBVIEW_MANIFEST__
+    : null;
 
   const canvas = document.getElementById('kdCanvas');
   const ctx = canvas.getContext('2d', { alpha: true });
@@ -277,6 +289,18 @@
     return String(relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
   }
 
+  function buildResourceUrl(relPath) {
+    const raw = String(relPath || '').trim();
+    if (!raw) return '';
+    if (/^(https?:|data:|vscode-webview-resource:|vscode-resource:|vscode-webview:)/i.test(raw)) {
+      return raw;
+    }
+
+    const normalized = normalizeRelPath(raw);
+    const base = String(DIST_BASE || '.').replace(/\/+$/, '');
+    return `${base}/${normalized}`;
+  }
+
   function inferSpriteSheet(image, relPath) {
     const pathLower = String(relPath || '').toLowerCase();
     const w = image.naturalWidth || image.width;
@@ -327,7 +351,7 @@
       const image = new Image();
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error(`Failed to load ${normalized}`));
-      image.src = `./${normalized}`;
+      image.src = buildResourceUrl(normalized);
     });
 
     imageCache.set(normalized, promise);
@@ -435,7 +459,13 @@
   }
 
   async function loadCatalog() {
-    const candidates = ['./kd-asset-pack/catalog.json', './kd-asset-pack/manifest.json'];
+    const candidates = [];
+    if (CATALOG_URI) candidates.push(CATALOG_URI);
+    if (MANIFEST_URI) candidates.push(MANIFEST_URI);
+    candidates.push(`${String(ASSET_BASE).replace(/\/+$/, '')}/catalog.json`);
+    candidates.push(`${String(ASSET_BASE).replace(/\/+$/, '')}/manifest.json`);
+    candidates.push('./kd-asset-pack/catalog.json');
+    candidates.push('./kd-asset-pack/manifest.json');
 
     for (const rel of candidates) {
       try {

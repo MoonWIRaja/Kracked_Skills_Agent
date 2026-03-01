@@ -310,6 +310,13 @@ if not exist "%WEB_FILE%" (
 )
 set PORT=4892
 if not "%1"=="" set PORT=%1
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr /R /C:":%PORT% .*LISTENING"') do (
+  if not "%%p"=="0" (
+    echo [KD] Port %PORT% in use by PID %%p. Stopping...
+    taskkill /F /PID %%p >nul 2>&1
+  )
+)
+timeout /t 1 /nobreak >nul
 node "%WEB_FILE%" --port %PORT% --open true
 `;
 
@@ -321,6 +328,19 @@ $webFile = Join-Path $PSScriptRoot ".kracked/runtime/pixel-web.js"
 if (-not (Test-Path $webFile)) {
   Write-Error "[KD] Web panel script not found: $webFile"
 }
+$pids = @()
+try {
+  $pids = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop | Select-Object -ExpandProperty OwningProcess -Unique)
+} catch {
+  $pids = @(netstat -ano | Select-String -Pattern (":$Port\\s+.*LISTENING\\s+(\\d+)$") | ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique)
+}
+foreach ($pid in $pids) {
+  if ($pid -and $pid -ne "0") {
+    Write-Host "[KD] Port $Port in use by PID $pid. Stopping..."
+    Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue
+  }
+}
+Start-Sleep -Milliseconds 800
 node $webFile --port $Port --open true
 `;
 

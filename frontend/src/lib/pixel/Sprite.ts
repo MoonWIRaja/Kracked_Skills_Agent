@@ -1,131 +1,153 @@
 /**
- * Sprite class for pixel-agents character spritesheets
+ * CharacterSprite — Loads craftpix-style character spritesheets.
  *
- * Each char_N.png is an 8-column × 6-row grid of 16×16 cells.
- * A single character occupies 1 column × 2 rows (16×32 px).
+ * Each character has a WALK sheet and an IDLE sheet.
+ * Sheets are arranged as ROWS × COLS:
+ *   Row 0 = Face Down
+ *   Row 1 = Face Left
+ *   Row 2 = Face Right
+ *   Row 3 = Face Up
  *
- * Verified layout from actual spritesheet images:
- *   Row 0-1: Walk Down  (4 frames, cols 0-3)  — each frame is 16w × 32h
- *   Row 2-3: Walk Left  (4 frames, cols 0-3)
- *            Walk Right (4 frames, cols 4-7)
- *   Row 4-5: Walk Up    (4 frames, cols 0-3)
- *            Idle Down  (1 frame, col 4)
- *            Sit/Type   (2 frames, cols 5-6)
+ * Frame size is auto-detected: frameW = image.width / cols, frameH = image.height / 4
  *
- * Cell size: 16 × 16, but each frame uses 2 cells vertically = 16 × 32
+ * Walk sheets: 6 columns × 4 rows
+ * Idle sheets: variable columns × 4 rows (we use the first few frames)
+ * Mage sheets: 7 columns × 4 rows (cols 0-3 = idle, cols 4-6 = casting)
  */
 
-export const CELL_SIZE = 16;     // single cell in the spritesheet
-export const FRAME_W = 16;       // character frame width
-export const FRAME_H = 32;       // character frame height (2 cells)
+// Known character definitions: [walkFile, idleFile, walkCols, idleCols]
+export const CHARACTER_DEFS: Record<string, { walk: string; idle: string; walkCols: number; idleCols: number }> = {
+  citizen1: { walk: 'Citizen1_Walk.png', idle: 'Citizen1_Idle.png', walkCols: 6, idleCols: 8 },
+  citizen2: { walk: 'Citizen2_Walk.png', idle: 'Citizen2_Idle.png', walkCols: 6, idleCols: 8 },
+  mage1: { walk: 'Mage1.png', idle: 'Mage1.png', walkCols: 7, idleCols: 7 },
+  mage3: { walk: 'Mage3.png', idle: 'Mage3.png', walkCols: 7, idleCols: 7 },
+  fighter: { walk: 'Fighter2_Walk.png', idle: 'Fighter2_Idle.png', walkCols: 6, idleCols: 8 },
+  swordsman: { walk: 'Swordsman_Walk.png', idle: 'Swordsman_Idle.png', walkCols: 6, idleCols: 9 },
+  guildmaster: { walk: 'Guildmaster.png', idle: 'Guildmaster.png', walkCols: 9, idleCols: 9 },
+};
 
-export enum Direction {
-  DOWN = 0,
-  LEFT = 1,
-  RIGHT = 2,
-  UP = 3,
-}
+// Map agent roles → character sprite key
+export const ROLE_TO_CHARACTER: Record<string, string> = {
+  'master_agent': 'citizen1',
+  'main-agent': 'citizen1',
+  'product_manager': 'citizen2',
+  'pm': 'citizen2',
+  'engineer': 'mage1',
+  'tech-lead': 'mage1',
+  'qa': 'swordsman',
+  'security': 'swordsman',
+  'analyst': 'mage3',
+  'architect': 'mage3',
+  'devops': 'fighter',
+  'release': 'fighter',
+};
 
-export enum CharacterState {
-  IDLE = 'idle',
-  WALK = 'walk',
-  TYPE = 'type',
-}
+const DIR_MAP = { down: 0, left: 1, right: 2, up: 3 };
 
-/**
- * Returns the source rectangle {sx, sy} in the spritesheet for a given
- * animation state, direction, and frame index.
- */
-function getFrameCoords(
-  state: CharacterState,
-  direction: Direction,
-  frame: number
-): { sx: number; sy: number } {
-  let col: number;
-  let rowPair: number; // each "row pair" = 2 cell-rows
-
-  switch (state) {
-    case CharacterState.WALK:
-      switch (direction) {
-        case Direction.DOWN:
-          rowPair = 0;
-          col = frame % 4;
-          break;
-        case Direction.LEFT:
-          rowPair = 1;
-          col = frame % 4;
-          break;
-        case Direction.RIGHT:
-          rowPair = 1;
-          col = 4 + (frame % 4);
-          break;
-        case Direction.UP:
-        default:
-          rowPair = 2;
-          col = frame % 4;
-          break;
-      }
-      break;
-
-    case CharacterState.TYPE:
-      rowPair = 2;
-      col = 5 + (frame % 2);  // cols 5-6 in row pair 2
-      break;
-
-    case CharacterState.IDLE:
-    default:
-      // Idle facing down = row pair 2, col 4
-      rowPair = 2;
-      col = 4;
-      break;
-  }
-
-  return {
-    sx: col * CELL_SIZE,
-    sy: rowPair * FRAME_H,   // rowPair * 32
-  };
-}
+export type AgentState = 'IDLE' | 'WALK' | 'TYPE';
+export type Direction = 'down' | 'left' | 'right' | 'up';
 
 export class CharacterSprite {
-  image: HTMLImageElement;
-  loaded: boolean = false;
-  charId: number;
+  walkImg: HTMLImageElement | null = null;
+  idleImg: HTMLImageElement | null = null;
+  loaded = false;
 
-  constructor(charId: number) {
-    this.charId = charId;
-    this.image = new window.Image();
-    this.image.onload = () => { this.loaded = true; };
-    this.image.onerror = () => { this.loaded = false; };
-    this.image.src = `/assets/characters/char_${charId}.png`;
+  private walkFrameW = 0;
+  private walkFrameH = 0;
+  private idleFrameW = 0;
+  private idleFrameH = 0;
+  private walkCols: number;
+  private idleCols: number;
+
+  constructor(
+    private charKey: string,
+    private basePath: string = '/assets/characters/',
+  ) {
+    const def = CHARACTER_DEFS[charKey] || CHARACTER_DEFS.citizen1;
+    this.walkCols = def.walkCols;
+    this.idleCols = def.idleCols;
+    this.loadImages(def);
+  }
+
+  private loadImages(def: { walk: string; idle: string }) {
+    let loadCount = 0;
+    const checkLoaded = () => {
+      loadCount++;
+      if (loadCount >= 2) this.loaded = true;
+    };
+
+    this.walkImg = new Image();
+    this.walkImg.onload = () => {
+      this.walkFrameW = Math.floor(this.walkImg!.width / this.walkCols);
+      this.walkFrameH = Math.floor(this.walkImg!.height / 4);
+      checkLoaded();
+    };
+    this.walkImg.onerror = () => checkLoaded();
+    this.walkImg.src = this.basePath + def.walk;
+
+    // Idle might be same file as walk (for mages)
+    if (def.idle === def.walk) {
+      this.idleImg = this.walkImg;
+      this.idleFrameW = 0; // will be set after walk loads
+      this.idleFrameH = 0;
+      this.walkImg.addEventListener('load', () => {
+        this.idleFrameW = Math.floor(this.walkImg!.width / this.idleCols);
+        this.idleFrameH = Math.floor(this.walkImg!.height / 4);
+      });
+      checkLoaded(); // idle shares walk image
+    } else {
+      this.idleImg = new Image();
+      this.idleImg.onload = () => {
+        this.idleFrameW = Math.floor(this.idleImg!.width / this.idleCols);
+        this.idleFrameH = Math.floor(this.idleImg!.height / 4);
+        checkLoaded();
+      };
+      this.idleImg.onerror = () => checkLoaded();
+      this.idleImg.src = this.basePath + def.idle;
+    }
   }
 
   /**
-   * Draw the character on the canvas.
-   *
-   * Because the game canvas is already scaled (ctx.scale(SCALE)),
-   * we draw at 1:1 here — the character renders as 16×32 native pixels
-   * and the outer SCALE (2×) makes it 32×64 on screen.
+   * Draw the character sprite at (x, y) on the canvas.
+   * renderW/H controls the display size on the map (tile-relative).
    */
   draw(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    state: CharacterState,
+    state: AgentState,
     direction: Direction,
     frame: number,
+    renderW: number = 24,
+    renderH: number = 32,
   ) {
-    if (!this.loaded) return;
-    ctx.imageSmoothingEnabled = false;
+    const dirRow = DIR_MAP[direction] ?? 0;
 
-    const { sx, sy } = getFrameCoords(state, direction, frame);
-
-    ctx.drawImage(
-      this.image,
-      sx, sy,            // source position
-      FRAME_W, FRAME_H,  // source size (16×32)
-      x, y,              // destination position
-      FRAME_W, FRAME_H,  // destination size (drawn at 1:1, outer scale handles zoom)
-    );
+    if (state === 'WALK') {
+      const img = this.walkImg;
+      if (!img || !img.complete || this.walkFrameW === 0) return;
+      const col = frame % this.walkCols;
+      const sx = col * this.walkFrameW;
+      const sy = dirRow * this.walkFrameH;
+      // Center the character on the tile and align feet to bottom
+      const dx = x + (16 - renderW) / 2;
+      const dy = y + 16 - renderH;
+      ctx.drawImage(img, sx, sy, this.walkFrameW, this.walkFrameH, dx, dy, renderW, renderH);
+    } else {
+      // IDLE or TYPE — use idle sheet
+      const img = this.idleImg || this.walkImg;
+      if (!img || !img.complete) return;
+      const fw = this.idleFrameW || this.walkFrameW;
+      const fh = this.idleFrameH || this.walkFrameH;
+      if (fw === 0) return;
+      const cols = (img === this.walkImg && this.idleImg === this.walkImg) ? this.idleCols : this.idleCols;
+      const col = frame % Math.min(cols, 4); // Use first 4 idle frames
+      const sx = col * fw;
+      const sy = dirRow * fh;
+      const dx = x + (16 - renderW) / 2;
+      const dy = y + 16 - renderH;
+      ctx.drawImage(img, sx, sy, fw, fh, dx, dy, renderW, renderH);
+    }
   }
 }
 
@@ -139,20 +161,24 @@ export function drawFallbackCharacter(
   y: number,
   color: string,
 ) {
+  const renderW = 24;
+  const renderH = 32;
+  const dx = x + (16 - renderW) / 2;
+  const dy = y + 16 - renderH;
+
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(x + FRAME_W / 2, y + FRAME_H - 2, 5, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(dx + renderW / 2, y + 14, 6, 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // Body
-  ctx.fillStyle = color;
-  ctx.fillRect(x + 3, y + 14, 10, 14);
+  ctx.fillStyle = color || '#4488cc';
+  ctx.fillRect(dx + 4, dy + 12, renderW - 8, renderH - 14);
 
   // Head
-  ctx.fillStyle = '#fca5a5';
+  ctx.fillStyle = color || '#4488cc';
   ctx.beginPath();
-  ctx.arc(x + FRAME_W / 2, y + 10, 5, 0, Math.PI * 2);
+  ctx.arc(dx + renderW / 2, dy + 10, 6, 0, Math.PI * 2);
   ctx.fill();
-
 }

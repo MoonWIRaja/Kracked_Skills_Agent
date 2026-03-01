@@ -1,5 +1,5 @@
 import { OfficeMap } from './OfficeMap';
-import { CharacterSprite, CharacterState, Direction, FRAME_W, FRAME_H, drawFallbackCharacter } from './Sprite';
+import { CharacterSprite, ROLE_TO_CHARACTER, AgentState, Direction, drawFallbackCharacter } from './Sprite';
 
 const TILE_SIZE = 16;
 const SCALE = 2;
@@ -20,35 +20,27 @@ export interface AgentEntity {
   speechBubble: string | null;
   bubbleTimer: number;
   sprite: CharacterSprite;
-  state: CharacterState;
+  state: AgentState;
   direction: Direction;
   frame: number;
   frameTimer: number;
   isMoving: boolean;
 }
 
-const AGENT_CHAR_MAP: Record<string, number> = {
-  'main-agent': 0,
-  'master-agent': 0,
-  analyst: 1,
-  'analyst-agent': 1,
-  pm: 2,
-  'pm-agent': 2,
-  'product-manager': 2,
-  architect: 3,
-  'architect-agent': 3,
-  'tech-lead': 4,
-  'tech-lead-agent': 4,
-  engineer: 5,
-  'engineer-agent': 5,
-  qa: 0,
-  'qa-agent': 0,
-  security: 1,
-  'security-agent': 1,
-  devops: 2,
-  'devops-agent': 2,
-  'release-manager': 3,
-  'release-manager-agent': 3,
+// Agent role colors for fallback rendering
+const ROLE_COLORS: Record<string, string> = {
+  'master_agent': '#44aa66',
+  'main-agent': '#44aa66',
+  'product_manager': '#aa6644',
+  'pm': '#aa6644',
+  'engineer': '#4466aa',
+  'tech-lead': '#4466aa',
+  'qa': '#aa4466',
+  'security': '#aa4466',
+  'analyst': '#6644aa',
+  'architect': '#6644aa',
+  'devops': '#aaaa44',
+  'release': '#aaaa44',
 };
 
 function normalizeKey(value: string): string {
@@ -62,23 +54,29 @@ function normalizeRole(value: string): string {
   return normalizeKey(value).replace(/-agent$/, '');
 }
 
-function hashToSpriteIndex(input: string): number {
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return hash % 6;
-}
-
-function resolveSpriteIndex(id: string, role: string, name: string): number {
+/**
+ * Resolve which character sprite key to use for an agent.
+ * Returns a key from CHARACTER_DEFS (e.g. 'citizen1', 'mage1', 'swordsman')
+ */
+function resolveCharacterKey(id: string, role: string): string {
+  const roleKey = normalizeRole(role);
   const idKey = normalizeKey(id);
-  const roleKey = normalizeKey(role);
-  const roleShort = roleKey.replace(/-agent$/, '');
 
-  if (idKey in AGENT_CHAR_MAP) return AGENT_CHAR_MAP[idKey];
-  if (roleKey in AGENT_CHAR_MAP) return AGENT_CHAR_MAP[roleKey];
-  if (roleShort in AGENT_CHAR_MAP) return AGENT_CHAR_MAP[roleShort];
-  return hashToSpriteIndex(normalizeKey(name || id || role || 'agent'));
+  // Direct role match
+  if (ROLE_TO_CHARACTER[roleKey]) return ROLE_TO_CHARACTER[roleKey];
+
+  // Partial match
+  for (const [pattern, charKey] of Object.entries(ROLE_TO_CHARACTER)) {
+    if (roleKey.includes(pattern) || idKey.includes(pattern)) return charKey;
+  }
+
+  // Hash-based fallback — cycle through available characters
+  const chars = ['citizen1', 'citizen2', 'mage1', 'mage3', 'fighter', 'swordsman'];
+  let hash = 0;
+  for (let i = 0; i < idKey.length; i++) {
+    hash = (hash * 31 + idKey.charCodeAt(i)) >>> 0;
+  }
+  return chars[hash % chars.length];
 }
 
 export class PixelEngine {
@@ -112,11 +110,14 @@ export class PixelEngine {
   }
 
   addAgent(id: string, name: string, role: string, color: string) {
-    const charId = resolveSpriteIndex(id, role, name);
-    const sprite = new CharacterSprite(charId);
+    const charKey = resolveCharacterKey(id, role);
+    const sprite = new CharacterSprite(charKey);
     const roleKey = normalizeRole(role);
     const agentKey = normalizeKey(id);
     const spawn = this.map.pickSpawn(roleKey, agentKey);
+
+    // Pick a color from role if not provided
+    const agentColor = color || ROLE_COLORS[roleKey] || '#4488cc';
 
     this.agents.set(id, {
       id,
@@ -126,12 +127,12 @@ export class PixelEngine {
       y: spawn.y,
       targetX: spawn.x,
       targetY: spawn.y,
-      color,
+      color: agentColor,
       speechBubble: null,
       bubbleTimer: 0,
       sprite,
-      state: CharacterState.IDLE,
-      direction: Direction.DOWN,
+      state: 'IDLE',
+      direction: 'down',
       frame: 0,
       frameTimer: 0,
       isMoving: false,
@@ -162,12 +163,12 @@ export class PixelEngine {
 
       if (dist > 0.1) {
         agent.isMoving = true;
-        agent.state = CharacterState.WALK;
+        agent.state = 'WALK';
 
         if (Math.abs(dx) > Math.abs(dy)) {
-          agent.direction = dx > 0 ? Direction.RIGHT : Direction.LEFT;
+          agent.direction = dx > 0 ? 'right' : 'left';
         } else {
-          agent.direction = dy > 0 ? Direction.DOWN : Direction.UP;
+          agent.direction = dy > 0 ? 'down' : 'up';
         }
 
         const speed = WALK_SPEED * deltaTime;
@@ -176,7 +177,7 @@ export class PixelEngine {
 
         agent.frameTimer += deltaTime;
         if (agent.frameTimer >= WALK_FRAME_DURATION) {
-          agent.frame = (agent.frame + 1) % 4;
+          agent.frame = (agent.frame + 1) % 6; // 6 walk frames
           agent.frameTimer = 0;
         }
       } else {
@@ -185,15 +186,19 @@ export class PixelEngine {
         agent.isMoving = false;
 
         if (agent.speechBubble) {
-          agent.state = CharacterState.TYPE;
+          agent.state = 'TYPE';
           agent.frameTimer += deltaTime;
           if (agent.frameTimer >= TYPE_FRAME_DURATION) {
-            agent.frame = (agent.frame + 1) % 2;
+            agent.frame = (agent.frame + 1) % 4; // 4 idle frames for typing
             agent.frameTimer = 0;
           }
         } else {
-          agent.state = CharacterState.IDLE;
-          agent.frame = 0;
+          agent.state = 'IDLE';
+          agent.frameTimer += deltaTime;
+          if (agent.frameTimer >= TYPE_FRAME_DURATION) {
+            agent.frame = (agent.frame + 1) % 4;
+            agent.frameTimer = 0;
+          }
         }
 
         if (Math.random() < WANDER_CHANCE) {
@@ -217,6 +222,7 @@ export class PixelEngine {
 
     this.ctx.save();
     this.ctx.scale(SCALE, SCALE);
+    this.ctx.imageSmoothingEnabled = false;
 
     this.map.draw(this.ctx);
 
@@ -225,23 +231,23 @@ export class PixelEngine {
     sorted.forEach((agent) => {
       const px = agent.x * TILE_SIZE;
       const py = agent.y * TILE_SIZE;
-
-      // Characters are 16×32, so draw them offset upward so feet align with tile
-      const charX = px;
-      const charY = py - (FRAME_H - TILE_SIZE); // shift up by 16px
-      const centerX = px + FRAME_W / 2;
+      const centerX = px + TILE_SIZE / 2;
 
       if (agent.sprite.loaded) {
-        agent.sprite.draw(this.ctx, charX, charY, agent.state, agent.direction, agent.frame);
+        agent.sprite.draw(this.ctx, px, py, agent.state, agent.direction, agent.frame);
       } else {
-        drawFallbackCharacter(this.ctx, charX, charY, agent.color);
+        drawFallbackCharacter(this.ctx, px, py, agent.color);
       }
 
       // Name label above head
-      this.ctx.fillStyle = 'white';
+      this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
       this.ctx.font = '5px "Silkscreen", monospace';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(agent.name, centerX, charY - 3);
+      const nameY = py - 20;
+      const nameMetrics = this.ctx.measureText(agent.name);
+      this.ctx.fillRect(centerX - nameMetrics.width / 2 - 2, nameY - 5, nameMetrics.width + 4, 7);
+      this.ctx.fillStyle = 'white';
+      this.ctx.fillText(agent.name, centerX, nameY);
 
       // Speech bubble
       if (agent.speechBubble) {
@@ -252,7 +258,7 @@ export class PixelEngine {
         const boxW = Math.min(metrics.width + padding * 2, 130);
         const boxH = 10;
         const bx = centerX - boxW / 2;
-        const by = charY - 16;
+        const by = nameY - 14;
 
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
         this.ctx.beginPath();

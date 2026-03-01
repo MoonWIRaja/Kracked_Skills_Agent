@@ -70,7 +70,8 @@ const PANEL_REMOTE_BASES = [
   'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/master/ide/vscode-kd-pixel-panel',
 ];
 const PANEL_UPSTREAM_WEBVIEW_BASE = 'https://raw.githubusercontent.com/pablodelucca/pixel-agents/main/webview-ui/public';
-const PANEL_MIN_VERSION = '0.3.2';
+const PANEL_MIN_VERSION = '0.3.3';
+const PANEL_LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v4';
 
 function normalizeToolName(tool) {
   const value = String(tool || '').trim().toLowerCase();
@@ -144,7 +145,7 @@ function readPanelBundleInfo(panelDir) {
     layoutBytes: 0,
     layoutValid: false,
     layoutFurnitureCount: 0,
-    hasLayoutV3: false,
+    hasExpectedLayoutStateKey: false,
     fresh: false,
   };
 
@@ -164,7 +165,7 @@ function readPanelBundleInfo(panelDir) {
   if (fs.existsSync(extensionPath)) {
     info.extensionBytes = fs.statSync(extensionPath).size;
     const text = fs.readFileSync(extensionPath, 'utf8');
-    info.hasLayoutV3 = text.includes("officeLayout.v3");
+    info.hasExpectedLayoutStateKey = text.includes(PANEL_LAYOUT_STATE_KEY);
   }
 
   const layoutPath = path.join(panelDir, 'dist', 'webview', 'assets', 'default-layout.json');
@@ -191,7 +192,7 @@ function readPanelBundleInfo(panelDir) {
   }
 
   info.fresh = compareSemver(info.version, PANEL_MIN_VERSION) >= 0
-    && info.hasLayoutV3
+    && info.hasExpectedLayoutStateKey
     && info.layoutValid;
 
   return info;
@@ -322,9 +323,11 @@ function applyPanelHotfixes(panelDest) {
   if (!fs.existsSync(extensionPath)) return { changed: false };
 
   const content = fs.readFileSync(extensionPath, 'utf8');
-  if (content.includes("kdPixel.officeLayout.v3")) return { changed: false };
+  if (content.includes(PANEL_LAYOUT_STATE_KEY)) return { changed: false };
 
-  const updated = content.replace(/kdPixel\.officeLayout\.v2/g, 'kdPixel.officeLayout.v3');
+  const updated = content
+    .replace(/kdPixel\.officeLayout\.v2/g, PANEL_LAYOUT_STATE_KEY)
+    .replace(/kdPixel\.officeLayout\.v3/g, PANEL_LAYOUT_STATE_KEY);
   if (updated !== content) {
     fs.writeFileSync(extensionPath, updated, 'utf8');
     return { changed: true };
@@ -814,7 +817,7 @@ async function install(args) {
 
   if (wasInstalled) {
     if (!args.yes) {
-      const answer = await prompt(`  ${c('yellow', 'Ã¢Å¡Â Ã¯Â¸Â')}  KD already installed. Overwrite? (y/N): `);
+      const answer = await prompt(`  ${c('yellow', '[WARN]')} KD already installed. Overwrite? (y/N): `);
       if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
         showInfo('Installation cancelled.');
         return;
@@ -924,7 +927,7 @@ async function install(args) {
   const krackSrc = path.join(templatesDir, '.kracked');
   if (fs.existsSync(krackSrc)) {
     copyDirRecursive(krackSrc, krackDir);
-    showSuccess('.kracked/ Ã¢â‚¬â€ agents, skills, prompts, templates, workflows');
+    showSuccess('.kracked/ - agents, skills, prompts, templates, workflows');
   } else {
     showWarning('Templates directory not found, creating structure...');
     createMinimalStructure(krackDir);
@@ -953,7 +956,7 @@ async function install(args) {
     copyDirRecursive(panelSrc, panelDest);
     const hotfixResult = applyPanelHotfixes(panelDest);
     if (hotfixResult.changed) {
-      showInfo('Applied panel layout-state hotfix (v3)');
+      showInfo('Applied panel layout-state hotfix (v4)');
     }
     let panelInfo = readPanelBundleInfo(panelDest);
     if (!panelInfo.fresh) {
@@ -1033,9 +1036,9 @@ async function install(args) {
       const files = generateAdapter(targetDir, ide, { mainAgentName, roster });
       generateIDEConfig(targetDir, ide);
       allAdapterFiles.push(...files);
-      showSuccess(`${ide} Ã¢â‚¬â€ ${files.length} file(s) generated`);
+      showSuccess(`${ide} - ${files.length} file(s) generated`);
     } catch (err) {
-      showError(`${ide} Ã¢â‚¬â€ ${err.message}`);
+      showError(`${ide} - ${err.message}`);
     }
   }
 
@@ -1155,7 +1158,7 @@ ${selectedTools.map((t) => `  - ${t}`).join('\n')}
 
   showDivider();
   console.log('');
-  console.log(c('brightGreen', '  Ã¢Å“â€¦ Kracked_Skills Agent (KD) installed successfully!'));
+  console.log(c('brightGreen', '  [DONE] Kracked_Skills Agent (KD) installed successfully!'));
   console.log('');
   console.log(`  ${c('brightWhite', 'Project:')} ${projectName}`);
   console.log(`  ${c('brightWhite', 'Main Agent:')} ${mainAgentName}`);
@@ -1169,7 +1172,7 @@ ${selectedTools.map((t) => `  - ${t}`).join('\n')}
   console.log(`    3. Type ${c('cyan', '/kd-help')} for guidance on what to do next`);
   console.log(`    4. Type ${c('cyan', '/kd-analyze')} to start Discovery phase`);
   console.log('');
-  console.log(c('brightYellow', '  Ã¢Å¡Â¡ KD finishes what it starts.'));
+  console.log(c('brightYellow', '  KD finishes what it starts.'));
   console.log('');
 }
 

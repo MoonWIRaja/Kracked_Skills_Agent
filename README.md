@@ -301,7 +301,8 @@ Then in command palette run:
 KD Pixel: Reset Office Layout
 ```
 
-If still old, confirm extension version is `0.3.2` or newer.
+If still old, confirm extension version is `0.3.3` or newer.
+`0.3.3` migrates layout state key to `kdPixel.officeLayout.v4`, so old saved layout cache is ignored automatically.
 If installer reports stale cached package, run:
 
 ```bash

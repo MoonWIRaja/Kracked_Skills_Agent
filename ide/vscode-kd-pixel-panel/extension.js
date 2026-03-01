@@ -4,7 +4,8 @@ const path = require('path');
 
 const MAX_EVENTS = 600;
 const VIEW_ID = 'kdPixel.panelView';
-const LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v3';
+const LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v4';
+const LEGACY_LAYOUT_STATE_KEYS = ['kdPixel.officeLayout.v3', 'kdPixel.officeLayout.v2'];
 const AGENT_ID_MAP_KEY = 'kdPixel.agentIdByKey';
 const NEXT_AGENT_ID_KEY = 'kdPixel.nextAgentNumericId';
 const AGENT_SEATS_KEY = 'kdPixel.agentSeats';
@@ -88,11 +89,12 @@ class KDPanelViewProvider {
     this.nextNumericId = Number(this.context.workspaceState.get(NEXT_AGENT_ID_KEY, 1)) || 1;
   }
 
-  resolveWebviewView(webviewView) {
+  async resolveWebviewView(webviewView) {
     this.view = webviewView;
     this.ready = false;
     this.activeNumericIds.clear();
     this.lastSignatureById.clear();
+    await this.migrateLayoutStateIfNeeded();
 
     this.view.webview.options = { enableScripts: true };
     this.view.webview.html = this.getWebviewHtml();
@@ -226,7 +228,7 @@ class KDPanelViewProvider {
 
   getLayout() {
     const saved = this.context.workspaceState.get(LAYOUT_STATE_KEY);
-    if (saved && typeof saved === 'object') return saved;
+    if (isValidLayout(saved)) return saved;
     return loadBundledDefaultLayout(this.context.extensionPath);
   }
 
@@ -369,7 +371,7 @@ class KDPanelViewProvider {
     try {
       const raw = fs.readFileSync(uris[0].fsPath, 'utf8');
       const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') {
+      if (!isValidLayout(parsed)) {
         vscode.window.showErrorMessage('Invalid layout file.');
         return;
       }
@@ -398,6 +400,20 @@ class KDPanelViewProvider {
     this.stopPolling();
   }
 
+  async migrateLayoutStateIfNeeded() {
+    const current = this.context.workspaceState.get(LAYOUT_STATE_KEY);
+    if (isValidLayout(current)) return;
+
+    const layout = loadBundledDefaultLayout(this.context.extensionPath);
+    await this.context.workspaceState.update(LAYOUT_STATE_KEY, layout);
+    for (const key of LEGACY_LAYOUT_STATE_KEYS) {
+      const legacy = this.context.workspaceState.get(key);
+      if (legacy !== undefined) {
+        await this.context.workspaceState.update(key, undefined);
+      }
+    }
+  }
+
   isKDWorkspace() {
     const root = this.getWorkspaceRoot();
     return Boolean(root && fs.existsSync(path.join(root, '.kracked', 'runtime', 'events.jsonl')));
@@ -409,7 +425,8 @@ function loadBundledDefaultLayout(extensionPath) {
   if (fs.existsSync(layoutPath)) {
     try {
       const raw = fs.readFileSync(layoutPath, 'utf8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (isValidLayout(parsed)) return parsed;
     } catch {
       // fall through
     }
@@ -422,6 +439,18 @@ function loadBundledDefaultLayout(extensionPath) {
     tiles: [],
     furniture: [],
   };
+}
+
+function isValidLayout(layout) {
+  if (!layout || typeof layout !== 'object') return false;
+  const cols = Number(layout.cols);
+  const rows = Number(layout.rows);
+  const tiles = Array.isArray(layout.tiles) ? layout.tiles : null;
+  const furniture = Array.isArray(layout.furniture) ? layout.furniture : null;
+  if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols <= 0 || rows <= 0) return false;
+  if (!tiles || !furniture) return false;
+  if (tiles.length !== cols * rows) return false;
+  return true;
 }
 
 function readEvents(eventsPath) {

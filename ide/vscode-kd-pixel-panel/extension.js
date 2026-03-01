@@ -406,15 +406,18 @@ class KDPanelViewProvider {
     const current = this.context.workspaceState.get(LAYOUT_STATE_KEY);
     const bundleSig = getBundledLayoutSignature(this.context.extensionPath);
     const savedSig = this.context.workspaceState.get(LAYOUT_BUNDLE_SIG_KEY);
+    const bundledLayout = loadBundledDefaultLayout(this.context.extensionPath);
+    const bundledFingerprint = getLayoutFingerprint(bundledLayout);
+    const currentFingerprint = getLayoutFingerprint(current);
     const currentFurnitureCount = countLayoutFurniture(current);
     const needsReset = !isValidLayout(current)
       || !savedSig
       || savedSig !== bundleSig
-      || currentFurnitureCount < 20;
+      || currentFurnitureCount < 20
+      || currentFingerprint !== bundledFingerprint;
 
     if (needsReset) {
-      const layout = loadBundledDefaultLayout(this.context.extensionPath);
-      await this.context.workspaceState.update(LAYOUT_STATE_KEY, layout);
+      await this.context.workspaceState.update(LAYOUT_STATE_KEY, bundledLayout);
     }
     await this.context.workspaceState.update(LAYOUT_BUNDLE_SIG_KEY, bundleSig);
 
@@ -469,6 +472,36 @@ function countLayoutFurniture(layout) {
   if (!layout || typeof layout !== 'object') return 0;
   const furniture = Array.isArray(layout.furniture) ? layout.furniture : [];
   return furniture.length;
+}
+
+function getLayoutFingerprint(layout) {
+  if (!isValidLayout(layout)) return 'invalid-layout';
+  const normalizedFurniture = (layout.furniture || []).map((item) => ({
+    type: item && item.type ? String(item.type) : '',
+    col: Number(item && item.col),
+    row: Number(item && item.row),
+    state: item && item.state ? String(item.state) : '',
+    rotation: Number(item && item.rotation || 0),
+    variant: item && item.variant ? String(item.variant) : '',
+    color: item && item.color && typeof item.color === 'object'
+      ? {
+        r: Number(item.color.r),
+        g: Number(item.color.g),
+        b: Number(item.color.b),
+      }
+      : null,
+  }));
+
+  const payload = JSON.stringify({
+    version: Number(layout.version || 1),
+    cols: Number(layout.cols),
+    rows: Number(layout.rows),
+    tiles: Array.isArray(layout.tiles) ? layout.tiles : [],
+    tileColors: Array.isArray(layout.tileColors) ? layout.tileColors : [],
+    furniture: normalizedFurniture,
+  });
+
+  return crypto.createHash('sha1').update(payload).digest('hex').slice(0, 16);
 }
 
 function getBundledLayoutSignature(extensionPath) {

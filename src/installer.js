@@ -70,7 +70,7 @@ const PANEL_REMOTE_BASES = [
   'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/master/ide/vscode-kd-pixel-panel',
 ];
 const PANEL_UPSTREAM_WEBVIEW_BASE = 'https://raw.githubusercontent.com/pablodelucca/pixel-agents/main/webview-ui/public';
-const PANEL_MIN_VERSION = '0.3.6';
+const PANEL_MIN_VERSION = '0.3.7';
 const PANEL_LAYOUT_STATE_KEY = 'kdPixel.officeLayout.v4';
 const PANEL_MIN_WEBVIEW_JS_BYTES = 305000;
 

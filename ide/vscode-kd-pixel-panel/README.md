@@ -16,7 +16,7 @@ npx @vscode/vsce package
 Install:
 
 ```bash
-code --install-extension kd-pixel-panel-0.3.6.vsix
+code --install-extension kd-pixel-panel-0.3.7.vsix
 ```
 
 ## Open Panel

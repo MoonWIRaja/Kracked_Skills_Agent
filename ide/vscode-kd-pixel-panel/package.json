@@ -2,7 +2,7 @@
   "name": "kd-pixel-panel",
   "displayName": "KD Pixel Panel",
   "description": "Native KD pixel observer panel powered by pixel-agents webview UI",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "publisher": "krackeddevs",
   "license": "MIT",
   "repository": {

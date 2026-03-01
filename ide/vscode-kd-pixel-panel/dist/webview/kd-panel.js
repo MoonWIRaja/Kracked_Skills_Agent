@@ -429,11 +429,11 @@
 
     for (const [key, def] of Object.entries(CHARACTER_DEFS)) {
       const walkPath = pickCatalogImageByBase(images, def.walk, {
-        preferPack,
+        preferPack: preferredPack,
         preferNoShadowless: true,
       });
       const idlePath = pickCatalogImageByBase(images, def.idle, {
-        preferPack,
+        preferPack: preferredPack,
         preferNoShadowless: true,
       }) || walkPath;
 

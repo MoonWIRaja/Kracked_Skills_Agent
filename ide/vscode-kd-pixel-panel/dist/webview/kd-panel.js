@@ -534,24 +534,24 @@
     const atlasUniverse = dedupePaths([...(catalog.tileAtlases || []), ...(catalog.objectAtlases || [])]);
 
     const floorAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['walls_floor', 'floor', 'interior', 'ground'],
-      exclude: ['objects', 'interior_objects', 'windows_doors', 'house_details', 'water', 'coast'],
-      limit: 10,
+      include: ['walls_floor', 'floor', 'interior'],
+      exclude: ['objects', 'interior_objects', 'windows_doors', 'house_details', 'water', 'coast', 'exterior', 'street'],
+      limit: 3,
     });
     const wallAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['walls_interior', 'walls_street', 'wall', 'windows_doors', 'house_details', 'door'],
-      exclude: ['water', 'coast'],
-      limit: 8,
+      include: ['walls_interior', 'wall', 'windows_doors'],
+      exclude: ['water', 'coast', 'floor', 'ground'],
+      limit: 3,
     });
     const outdoorAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['ground', 'grass', 'exterior', 'street', 'details', 'rocks'],
-      exclude: ['water', 'coast', 'interior_objects', 'objects'],
-      limit: 10,
+      include: ['ground', 'grass', 'exterior'],
+      exclude: ['water', 'coast', 'interior_objects', 'objects', 'floor', 'wall'],
+      limit: 3,
     });
     const waterAtlases = filterAtlasPaths(atlasUniverse, {
       include: ['water', 'coast'],
       exclude: [],
-      limit: 6,
+      limit: 2,
     });
 
     async function loadAtlasGroup(paths, extractOptions) {
@@ -575,27 +575,27 @@
       return cells;
     }
 
-    const floors = await loadAtlasGroup(floorAtlases, { minOpaqueRatio: 0.76, maxCells: 520 });
-    const walls = await loadAtlasGroup(wallAtlases, { minOpaqueRatio: 0.48, maxCells: 360 });
-    const outdoor = await loadAtlasGroup(outdoorAtlases, { minOpaqueRatio: 0.7, maxCells: 460 });
-    const water = await loadAtlasGroup(waterAtlases, { minOpaqueRatio: 0.52, maxCells: 220 });
+    const floors = await loadAtlasGroup(floorAtlases, { minOpaqueRatio: 0.82, maxCells: 80 });
+    const walls = await loadAtlasGroup(wallAtlases, { minOpaqueRatio: 0.55, maxCells: 60 });
+    const outdoor = await loadAtlasGroup(outdoorAtlases, { minOpaqueRatio: 0.78, maxCells: 60 });
+    const water = await loadAtlasGroup(waterAtlases, { minOpaqueRatio: 0.58, maxCells: 40 });
 
     const decorAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['interior_objects', 'objects', 'windows_doors'],
-      exclude: ['with_shadow', 'idle_', 'walk_', 'run_'],
-      limit: 5,
+      include: ['interior_objects', 'objects'],
+      exclude: ['with_shadow', 'idle_', 'walk_', 'run_', 'windows_doors'],
+      limit: 2,
     });
-    const decor = await loadAtlasGroup(decorAtlases, { minOpaqueRatio: 0.68, maxCells: 180 });
+    const decor = await loadAtlasGroup(decorAtlases, { minOpaqueRatio: 0.72, maxCells: 40 });
 
     state.pools = {
-      floors: floors.slice(0, 520),
-      walls: walls.slice(0, 360),
-      outdoor: outdoor.slice(0, 460),
-      water: water.slice(0, 220),
-      decor: decor.slice(0, 180),
+      floors: floors.slice(0, 80),
+      walls: walls.slice(0, 60),
+      outdoor: outdoor.slice(0, 60),
+      water: water.slice(0, 40),
+      decor: decor.slice(0, 40),
     };
 
-    const propPaths = selectProps(catalog).slice(0, 140);
+    const propPaths = selectProps(catalog).slice(0, 30);
     const propImages = await Promise.all(
       propPaths.map(async (relPath) => {
         try {
@@ -811,8 +811,8 @@
           ctx.fillRect(px, py, TILE, TILE);
         }
 
-        if (tileType !== TILE_VOID) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+        if (tileType === TILE_WALL) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)';
           ctx.strokeRect(px, py, TILE, TILE);
         }
       }

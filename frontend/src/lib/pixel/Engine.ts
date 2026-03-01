@@ -1,5 +1,5 @@
 import { OfficeMap } from './OfficeMap';
-import { CharacterSprite, CharacterState, Direction, drawFallbackCharacter } from './Sprite';
+import { CharacterSprite, CharacterState, Direction, FRAME_W, FRAME_H, drawFallbackCharacter } from './Sprite';
 
 const TILE_SIZE = 16;
 const SCALE = 2;
@@ -176,7 +176,7 @@ export class PixelEngine {
 
         agent.frameTimer += deltaTime;
         if (agent.frameTimer >= WALK_FRAME_DURATION) {
-          agent.frame = (agent.frame + 1) % 3;
+          agent.frame = (agent.frame + 1) % 4;
           agent.frameTimer = 0;
         }
       } else {
@@ -226,17 +226,24 @@ export class PixelEngine {
       const px = agent.x * TILE_SIZE;
       const py = agent.y * TILE_SIZE;
 
+      // Characters are 16×32, so draw them offset upward so feet align with tile
+      const charX = px;
+      const charY = py - (FRAME_H - TILE_SIZE); // shift up by 16px
+      const centerX = px + FRAME_W / 2;
+
       if (agent.sprite.loaded) {
-        agent.sprite.draw(this.ctx, px, py - 8, agent.state, agent.direction, agent.frame, 1);
+        agent.sprite.draw(this.ctx, charX, charY, agent.state, agent.direction, agent.frame);
       } else {
-        drawFallbackCharacter(this.ctx, px, py - 8, agent.color, agent.name, 1);
+        drawFallbackCharacter(this.ctx, charX, charY, agent.color);
       }
 
+      // Name label above head
       this.ctx.fillStyle = 'white';
       this.ctx.font = '5px "Silkscreen", monospace';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(agent.name, px + TILE_SIZE / 2, py - 12);
+      this.ctx.fillText(agent.name, centerX, charY - 3);
 
+      // Speech bubble
       if (agent.speechBubble) {
         const text = agent.speechBubble;
         this.ctx.font = '5px "Silkscreen", monospace';
@@ -244,23 +251,24 @@ export class PixelEngine {
         const padding = 3;
         const boxW = Math.min(metrics.width + padding * 2, 130);
         const boxH = 10;
-        const bx = px + TILE_SIZE / 2 - boxW / 2;
-        const by = py - 24;
+        const bx = centerX - boxW / 2;
+        const by = charY - 16;
 
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
         this.ctx.beginPath();
         this.ctx.roundRect(bx, by, boxW, boxH, 2);
         this.ctx.fill();
 
+        // Speech tail
         this.ctx.beginPath();
-        this.ctx.moveTo(px + TILE_SIZE / 2, by + boxH + 2);
-        this.ctx.lineTo(px + TILE_SIZE / 2 - 3, by + boxH);
-        this.ctx.lineTo(px + TILE_SIZE / 2 + 3, by + boxH);
+        this.ctx.moveTo(centerX, by + boxH + 2);
+        this.ctx.lineTo(centerX - 3, by + boxH);
+        this.ctx.lineTo(centerX + 3, by + boxH);
         this.ctx.fill();
 
         this.ctx.fillStyle = '#000';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(text, px + TILE_SIZE / 2, by + 7, boxW - padding * 2);
+        this.ctx.fillText(text, centerX, by + 7, boxW - padding * 2);
       }
     });
 

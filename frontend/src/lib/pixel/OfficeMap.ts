@@ -1,3 +1,26 @@
+/**
+ * OfficeMap — Clean 3-zone RPG world for the KD Pixel Observer
+ *
+ * Layout (20 cols × 15 rows):
+ * ┌─────────────┬────────────┐
+ * │  GUILD HALL │  DARK OPS  │
+ * │  (work area)│  (servers) │
+ * │             │            │
+ * ├─────────────┤            │
+ * │   CORRIDOR  │────────────┤
+ * │             │ WILD ZONE  │
+ * │  GUILD HALL │ (outdoors) │
+ * │  (library)  │            │
+ * └─────────────┴────────────┘
+ *
+ * Tile types:
+ *   0 = Floor       5 = Crystal
+ *   1 = Desk        6 = Water
+ *   2 = Wall        7 = Grass
+ *   3 = Tree        8 = Path
+ *   4 = Server      9 = Shelf
+ */
+
 export enum TileType {
   Floor = 0,
   Desk = 1,
@@ -6,341 +29,342 @@ export enum TileType {
   Server = 4,
   Crystal = 5,
   Water = 6,
-  Rock = 7,
-  Rune = 8,
-  Camp = 9,
-  Bridge = 10,
-  Shelf = 11,
-  Portal = 12,
-  Path = 13,
+  Grass = 7,
+  Path = 8,
+  Shelf = 9,
 }
 
-type ZoneType = 'guild' | 'darkops' | 'wild';
+interface Point { x: number; y: number }
 
-interface Point {
-  x: number;
-  y: number;
-}
+// Color palettes per zone
+const GUILD_FLOOR_A = '#4a3928';
+const GUILD_FLOOR_B = '#42331f';
+const DARK_FLOOR_A = '#1a2235';
+const DARK_FLOOR_B = '#151c2d';
+const WILD_GRASS_A = '#2d5a32';
+const WILD_GRASS_B = '#264e2b';
+const PATH_COLOR_A = '#6b5b45';
+const PATH_COLOR_B = '#5e5038';
+const WALL_COLOR = '#1c1c28';
+const WALL_ACCENT = '#2a2a3c';
 
 export class OfficeMap {
   cols: number;
   rows: number;
   tileSize: number;
-  grid: number[][];
-  zones: ZoneType[][];
+  grid: TileType[][];
 
-  constructor(cols: number, rows: number, tileSize: number = 32) {
+  constructor(cols: number, rows: number, tileSize: number = 16) {
     this.cols = cols;
     this.rows = rows;
     this.tileSize = tileSize;
-    this.grid = Array(this.rows).fill(0).map(() => Array(this.cols).fill(TileType.Floor));
-    this.zones = Array(this.rows).fill(0).map(() => Array(this.cols).fill('guild' as ZoneType));
-    this.generateMap();
+    this.grid = [];
+    this.buildMap();
   }
 
-  generateMap() {
-    this.grid = Array(this.rows).fill(0).map(() => Array(this.cols).fill(TileType.Floor));
-    this.zones = Array(this.rows).fill(0).map(() => Array(this.cols).fill('guild' as ZoneType));
+  private buildMap() {
+    // Start with all floors
+    this.grid = Array.from({ length: this.rows }, () =>
+      Array.from({ length: this.cols }, () => TileType.Floor)
+    );
 
-    this.fillZone(1, 1, 11, 13, 'guild');
-    this.fillZone(12, 1, 18, 7, 'darkops');
-    this.fillZone(12, 8, 18, 13, 'wild');
+    // ── Outer walls ────────────────────────────────────
+    for (let x = 0; x < this.cols; x++) {
+      this.set(x, 0, TileType.Wall);
+      this.set(x, this.rows - 1, TileType.Wall);
+    }
+    for (let y = 0; y < this.rows; y++) {
+      this.set(0, y, TileType.Wall);
+      this.set(this.cols - 1, y, TileType.Wall);
+    }
 
-    this.applyBorderWalls();
-    this.paintPaths();
-    this.placeGuildObjects();
-    this.placeDarkOpsObjects();
-    this.placeWildObjects();
-  }
+    // ── Zone divider: vertical wall at x=11 ───────────
+    for (let y = 0; y < this.rows; y++) {
+      this.set(11, y, TileType.Wall);
+    }
+    // Doorway holes in the divider wall
+    this.set(11, 4, TileType.Path);
+    this.set(11, 10, TileType.Path);
 
-  private fillZone(x1: number, y1: number, x2: number, y2: number, zone: ZoneType) {
-    for (let y = y1; y <= y2; y++) {
-      for (let x = x1; x <= x2; x++) {
-        if (this.inBounds(x, y)) {
-          this.zones[y][x] = zone;
+    // ── Zone divider: horizontal wall at y=7 in guild ──
+    for (let x = 0; x <= 11; x++) {
+      this.set(x, 7, TileType.Wall);
+    }
+    // Doorway in guild divider
+    this.set(5, 7, TileType.Path);
+    this.set(6, 7, TileType.Path);
+
+    // ── Horizontal divider in right half at y=7 ────────
+    for (let x = 11; x < this.cols; x++) {
+      this.set(x, 7, TileType.Wall);
+    }
+    this.set(15, 7, TileType.Path);
+
+    // ── GUILD HALL TOP (y 1-6, x 1-10) ────────────────
+    // Desks - organized workspace
+    this.set(3, 2, TileType.Desk);
+    this.set(3, 4, TileType.Desk);
+    this.set(7, 2, TileType.Desk);
+    this.set(7, 4, TileType.Desk);
+
+    // Bookshelves along north wall
+    this.set(2, 1, TileType.Shelf);
+    this.set(4, 1, TileType.Shelf);
+    this.set(6, 1, TileType.Shelf);
+    this.set(8, 1, TileType.Shelf);
+
+    // ── GUILD HALL BOTTOM (y 8-13, x 1-10) ────────────
+    // Library area - shelves on sides
+    this.set(1, 8, TileType.Shelf);
+    this.set(1, 10, TileType.Shelf);
+    this.set(1, 12, TileType.Shelf);
+    this.set(10, 8, TileType.Shelf);
+    this.set(10, 10, TileType.Shelf);
+    this.set(10, 12, TileType.Shelf);
+
+    // Central reading desks
+    this.set(4, 10, TileType.Desk);
+    this.set(7, 10, TileType.Desk);
+
+    // ── DARK OPS ZONE (y 1-6, x 12-18) ───────────────
+    // Server racks - organized rows
+    this.set(14, 2, TileType.Server);
+    this.set(15, 2, TileType.Server);
+    this.set(16, 2, TileType.Server);
+    this.set(14, 4, TileType.Server);
+    this.set(15, 4, TileType.Server);
+    this.set(16, 4, TileType.Server);
+
+    // Crystals at corners of server room
+    this.set(13, 1, TileType.Crystal);
+    this.set(17, 1, TileType.Crystal);
+    this.set(13, 5, TileType.Crystal);
+    this.set(17, 5, TileType.Crystal);
+
+    // ── WILD ZONE (y 8-13, x 12-18) ──────────────────
+    // Fill with grass
+    for (let y = 8; y <= 13; y++) {
+      for (let x = 12; x <= 18; x++) {
+        if (this.grid[y][x] === TileType.Floor) {
+          this.set(x, y, TileType.Grass);
         }
       }
     }
-  }
 
-  private applyBorderWalls() {
-    for (let x = 0; x < this.cols; x++) {
-      this.grid[0][x] = TileType.Wall;
-      this.grid[this.rows - 1][x] = TileType.Wall;
-    }
-    for (let y = 0; y < this.rows; y++) {
-      this.grid[y][0] = TileType.Wall;
-      this.grid[y][this.cols - 1] = TileType.Wall;
-    }
-  }
-
-  private paintPaths() {
-    for (let x = 2; x <= 17; x++) this.grid[7][x] = TileType.Path;
-    for (let y = 2; y <= 12; y++) this.grid[y][10] = TileType.Path;
-    for (let y = 5; y <= 9; y++) this.grid[y][12] = TileType.Path;
-    this.grid[7][10] = TileType.Path;
-    this.grid[7][12] = TileType.Path;
-  }
-
-  private placeGuildObjects() {
-    const desks: Point[] = [
-      { x: 3, y: 3 }, { x: 7, y: 3 },
-      { x: 3, y: 8 }, { x: 7, y: 8 },
-    ];
-    desks.forEach((p) => this.setTile(p.x, p.y, TileType.Desk));
-
-    const shelves: Point[] = [
-      { x: 2, y: 2 }, { x: 4, y: 2 }, { x: 6, y: 2 }, { x: 8, y: 2 },
-      { x: 2, y: 11 }, { x: 8, y: 11 },
-    ];
-    shelves.forEach((p) => this.setTile(p.x, p.y, TileType.Shelf));
-
-    this.setTile(5, 1, TileType.Portal);
-  }
-
-  private placeDarkOpsObjects() {
-    const servers: Point[] = [
-      { x: 14, y: 2 }, { x: 15, y: 2 }, { x: 16, y: 2 },
-      { x: 14, y: 4 }, { x: 15, y: 4 }, { x: 16, y: 4 },
-    ];
-    servers.forEach((p) => this.setTile(p.x, p.y, TileType.Server));
-
-    const crystals: Point[] = [
-      { x: 13, y: 2 }, { x: 17, y: 2 }, { x: 13, y: 4 }, { x: 17, y: 4 },
-    ];
-    crystals.forEach((p) => this.setTile(p.x, p.y, TileType.Crystal));
-
-    const runes: Point[] = [
-      { x: 14, y: 6 }, { x: 15, y: 6 }, { x: 16, y: 6 },
-    ];
-    runes.forEach((p) => this.setTile(p.x, p.y, TileType.Rune));
-  }
-
-  private placeWildObjects() {
+    // Water stream across the middle
     for (let x = 12; x <= 18; x++) {
-      this.setTile(x, 10, TileType.Water);
+      this.set(x, 10, TileType.Water);
     }
-    this.setTile(14, 10, TileType.Bridge);
-    this.setTile(15, 10, TileType.Bridge);
+    // Stone path bridge over water
+    this.set(14, 10, TileType.Path);
+    this.set(15, 10, TileType.Path);
 
-    const trees: Point[] = [
-      { x: 13, y: 9 }, { x: 17, y: 9 },
-      { x: 12, y: 12 }, { x: 18, y: 12 }, { x: 16, y: 12 },
-    ];
-    trees.forEach((p) => this.setTile(p.x, p.y, TileType.Tree));
+    // Trees around edges
+    this.set(13, 8, TileType.Tree);
+    this.set(17, 8, TileType.Tree);
+    this.set(12, 12, TileType.Tree);
+    this.set(18, 12, TileType.Tree);
+    this.set(15, 13, TileType.Tree);
 
-    const rocks: Point[] = [
-      { x: 13, y: 11 }, { x: 17, y: 11 }, { x: 18, y: 9 },
-    ];
-    rocks.forEach((p) => this.setTile(p.x, p.y, TileType.Rock));
-
-    this.setTile(15, 8, TileType.Camp);
+    // Stone path through wild zone
+    this.set(15, 8, TileType.Path);
+    this.set(15, 9, TileType.Path);
+    this.set(15, 11, TileType.Path);
+    this.set(15, 12, TileType.Path);
   }
 
-  private setTile(x: number, y: number, tile: TileType) {
-    if (!this.inBounds(x, y)) return;
-    this.grid[y][x] = tile;
-  }
-
-  private inBounds(x: number, y: number): boolean {
-    return x >= 0 && x < this.cols && y >= 0 && y < this.rows;
-  }
-
-  private drawFloor(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, tile: TileType) {
-    if (tile === TileType.Path) {
-      ctx.fillStyle = (x + y) % 2 === 0 ? '#8f6a3f' : '#7d5a34';
-      ctx.fillRect(px, py, this.tileSize, this.tileSize);
-      return;
-    }
-
-    const zone = this.zones[y][x];
-    if (zone === 'guild') {
-      ctx.fillStyle = (x + y) % 2 === 0 ? '#9b6c3d' : '#8d6135';
-    } else if (zone === 'darkops') {
-      ctx.fillStyle = (x + y) % 2 === 0 ? '#2a3448' : '#222c3f';
-    } else {
-      ctx.fillStyle = (x + y) % 2 === 0 ? '#4e7898' : '#446c8b';
-    }
-    ctx.fillRect(px, py, this.tileSize, this.tileSize);
-  }
-
-  private drawDesk(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#6c431f';
-    ctx.fillRect(px + 2, py + 4, this.tileSize - 4, this.tileSize - 6);
-    ctx.fillStyle = '#b7ccf6';
-    ctx.fillRect(px + 6, py + 6, this.tileSize - 12, 4);
-    ctx.fillStyle = '#2a2a35';
-    ctx.fillRect(px + 7, py + 11, 3, 2);
-    ctx.fillRect(px + this.tileSize - 10, py + 11, 3, 2);
-  }
-
-  private drawWall(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#1b2230';
-    ctx.fillRect(px, py, this.tileSize, this.tileSize);
-    ctx.fillStyle = '#2a3347';
-    ctx.fillRect(px + 1, py + 1, this.tileSize - 2, this.tileSize - 2);
-  }
-
-  private drawTree(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#67412a';
-    ctx.fillRect(px + 7, py + 9, 2, 5);
-    ctx.fillStyle = '#3d8b4a';
-    ctx.fillRect(px + 4, py + 4, 8, 6);
-    ctx.fillStyle = '#58ad63';
-    ctx.fillRect(px + 6, py + 3, 4, 3);
-  }
-
-  private drawServer(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(px + 2, py + 2, this.tileSize - 4, this.tileSize - 4);
-    ctx.fillStyle = '#1d2942';
-    ctx.fillRect(px + 4, py + 4, this.tileSize - 8, this.tileSize - 8);
-    const blink = Date.now() % 1000 < 500;
-    ctx.fillStyle = blink ? '#00f0a6' : '#0b5a43';
-    ctx.fillRect(px + 6, py + 6, 2, 2);
-    ctx.fillRect(px + 9, py + 6, 2, 2);
-  }
-
-  private drawCrystal(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#5f89ff';
-    ctx.beginPath();
-    ctx.moveTo(px + 8, py + 3);
-    ctx.lineTo(px + 11, py + 7);
-    ctx.lineTo(px + 8, py + 12);
-    ctx.lineTo(px + 5, py + 7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#a3bbff';
-    ctx.fillRect(px + 7, py + 5, 2, 2);
-  }
-
-  private drawWater(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#2c5f8d';
-    ctx.fillRect(px, py, this.tileSize, this.tileSize);
-    ctx.fillStyle = '#4f84b1';
-    ctx.fillRect(px + 2, py + 5, 5, 1);
-    ctx.fillRect(px + 9, py + 9, 4, 1);
-  }
-
-  private drawRock(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#7a7f8f';
-    ctx.fillRect(px + 4, py + 7, 8, 5);
-    ctx.fillStyle = '#9ba2b4';
-    ctx.fillRect(px + 6, py + 7, 3, 1);
-  }
-
-  private drawRune(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#5e71c3';
-    ctx.fillRect(px + 4, py + 4, 8, 8);
-    ctx.fillStyle = '#9bb0ff';
-    ctx.fillRect(px + 7, py + 5, 2, 6);
-    ctx.fillRect(px + 5, py + 7, 6, 2);
-  }
-
-  private drawCamp(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#6f4d2b';
-    ctx.fillRect(px + 5, py + 11, 6, 2);
-    ctx.fillStyle = '#ff7f2a';
-    ctx.fillRect(px + 7, py + 7, 2, 4);
-    ctx.fillStyle = '#ffd365';
-    ctx.fillRect(px + 7, py + 8, 1, 2);
-  }
-
-  private drawBridge(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#7f5a36';
-    ctx.fillRect(px, py + 4, this.tileSize, 8);
-    ctx.fillStyle = '#9a7248';
-    for (let i = 1; i < this.tileSize; i += 4) {
-      ctx.fillRect(px + i, py + 4, 1, 8);
+  private set(x: number, y: number, tile: TileType) {
+    if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
+      this.grid[y][x] = tile;
     }
   }
 
-  private drawShelf(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#5c3d25';
-    ctx.fillRect(px + 2, py + 3, this.tileSize - 4, this.tileSize - 6);
-    ctx.fillStyle = '#b3d08f';
-    ctx.fillRect(px + 4, py + 5, 3, 2);
-    ctx.fillStyle = '#86a9db';
-    ctx.fillRect(px + 8, py + 5, 3, 2);
-    ctx.fillStyle = '#cc8e8e';
-    ctx.fillRect(px + 5, py + 9, 4, 2);
+  // ── Zone detection ─────────────────────────────────
+  private getZone(x: number, y: number): 'guild' | 'darkops' | 'wild' {
+    if (x >= 12 && y >= 8) return 'wild';
+    if (x >= 12) return 'darkops';
+    return 'guild';
   }
 
-  private drawPortal(ctx: CanvasRenderingContext2D, px: number, py: number) {
-    ctx.fillStyle = '#2e1d4d';
-    ctx.fillRect(px + 3, py + 3, 10, 10);
-    ctx.fillStyle = '#8c5bff';
-    ctx.fillRect(px + 4, py + 4, 8, 8);
-    ctx.fillStyle = Date.now() % 1000 < 500 ? '#d2b5ff' : '#b58eff';
-    ctx.fillRect(px + 6, py + 6, 4, 4);
-  }
-
+  // ── Drawing ────────────────────────────────────────
   draw(ctx: CanvasRenderingContext2D) {
+    const T = this.tileSize;
+
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
-        const tile = this.grid[y][x] as TileType;
-        const px = x * this.tileSize;
-        const py = y * this.tileSize;
+        const tile = this.grid[y][x];
+        const px = x * T;
+        const py = y * T;
+        const checker = (x + y) % 2 === 0;
+        const zone = this.getZone(x, y);
 
-        this.drawFloor(ctx, x, y, px, py, tile);
+        // Draw base floor for the zone
+        switch (zone) {
+          case 'darkops':
+            ctx.fillStyle = checker ? DARK_FLOOR_A : DARK_FLOOR_B;
+            break;
+          case 'wild':
+            ctx.fillStyle = checker ? WILD_GRASS_A : WILD_GRASS_B;
+            break;
+          default:
+            ctx.fillStyle = checker ? GUILD_FLOOR_A : GUILD_FLOOR_B;
+        }
+        ctx.fillRect(px, py, T, T);
 
+        // Draw tile object on top
         switch (tile) {
-          case TileType.Desk:
-            this.drawDesk(ctx, px, py);
-            break;
           case TileType.Wall:
-            this.drawWall(ctx, px, py);
+            this.drawWall(ctx, px, py, T);
             break;
-          case TileType.Tree:
-            this.drawTree(ctx, px, py);
-            break;
-          case TileType.Server:
-            this.drawServer(ctx, px, py);
-            break;
-          case TileType.Crystal:
-            this.drawCrystal(ctx, px, py);
-            break;
-          case TileType.Water:
-            this.drawWater(ctx, px, py);
-            break;
-          case TileType.Rock:
-            this.drawRock(ctx, px, py);
-            break;
-          case TileType.Rune:
-            this.drawRune(ctx, px, py);
-            break;
-          case TileType.Camp:
-            this.drawCamp(ctx, px, py);
-            break;
-          case TileType.Bridge:
-            this.drawWater(ctx, px, py);
-            this.drawBridge(ctx, px, py);
+          case TileType.Desk:
+            this.drawDesk(ctx, px, py, T);
             break;
           case TileType.Shelf:
-            this.drawShelf(ctx, px, py);
+            this.drawShelf(ctx, px, py, T);
             break;
-          case TileType.Portal:
-            this.drawPortal(ctx, px, py);
+          case TileType.Server:
+            this.drawServer(ctx, px, py, T);
+            break;
+          case TileType.Crystal:
+            this.drawCrystal(ctx, px, py, T);
+            break;
+          case TileType.Tree:
+            this.drawTree(ctx, px, py, T);
+            break;
+          case TileType.Water:
+            this.drawWater(ctx, px, py, T);
+            break;
+          case TileType.Grass:
+            this.drawGrassDetail(ctx, px, py, T, checker);
+            break;
+          case TileType.Path:
+            ctx.fillStyle = checker ? PATH_COLOR_A : PATH_COLOR_B;
+            ctx.fillRect(px, py, T, T);
             break;
           default:
             break;
         }
       }
     }
+
+    // Draw zone labels
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '4px "Silkscreen", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GUILD HALL', 5 * T + T / 2, 1 * T - 1);
+    ctx.fillText('DARK OPS', 15 * T + T / 2, 1 * T - 1);
+    ctx.fillText('WILD ZONE', 15 * T + T / 2, 8 * T - 1);
   }
 
+  private drawWall(ctx: CanvasRenderingContext2D, px: number, py: number, T: number) {
+    ctx.fillStyle = WALL_COLOR;
+    ctx.fillRect(px, py, T, T);
+    ctx.fillStyle = WALL_ACCENT;
+    ctx.fillRect(px + 1, py + 1, T - 2, T - 2);
+    // Brick lines
+    ctx.fillStyle = WALL_COLOR;
+    ctx.fillRect(px, py + T / 2, T, 1);
+    ctx.fillRect(px + T / 2, py, 1, T / 2);
+  }
+
+  private drawDesk(ctx: CanvasRenderingContext2D, px: number, py: number, T: number) {
+    ctx.fillStyle = '#6c431f';
+    ctx.fillRect(px + 2, py + 4, T - 4, T - 6);
+    // Screen on desk
+    ctx.fillStyle = '#aaccee';
+    ctx.fillRect(px + 4, py + 5, T - 8, 4);
+    // Keyboard
+    ctx.fillStyle = '#444';
+    ctx.fillRect(px + 5, py + 10, T - 10, 2);
+  }
+
+  private drawShelf(ctx: CanvasRenderingContext2D, px: number, py: number, T: number) {
+    ctx.fillStyle = '#5c3d25';
+    ctx.fillRect(px + 1, py + 2, T - 2, T - 4);
+    // Books
+    ctx.fillStyle = '#88bb77';
+    ctx.fillRect(px + 3, py + 3, 3, 4);
+    ctx.fillStyle = '#7799cc';
+    ctx.fillRect(px + 7, py + 3, 3, 4);
+    ctx.fillStyle = '#cc8888';
+    ctx.fillRect(px + 4, py + 8, 4, 3);
+  }
+
+  private drawServer(ctx: CanvasRenderingContext2D, px: number, py: number, T: number) {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(px + 2, py + 1, T - 4, T - 2);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(px + 3, py + 2, T - 6, T - 4);
+    // Blinking lights
+    const blink = Date.now() % 1000 < 500;
+    ctx.fillStyle = blink ? '#00ff99' : '#0a4d33';
+    ctx.fillRect(px + 4, py + 4, 2, 2);
+    ctx.fillRect(px + 8, py + 4, 2, 2);
+    ctx.fillStyle = '#004466';
+    ctx.fillRect(px + 4, py + 8, T - 8, 2);
+  }
+
+  private drawCrystal(ctx: CanvasRenderingContext2D, px: number, py: number, T: number) {
+    const cx = px + T / 2;
+    // Diamond shape
+    ctx.fillStyle = '#6688ff';
+    ctx.beginPath();
+    ctx.moveTo(cx, py + 2);
+    ctx.lineTo(cx + 4, py + T / 2);
+    ctx.lineTo(cx, py + T - 2);
+    ctx.lineTo(cx - 4, py + T / 2);
+    ctx.closePath();
+    ctx.fill();
+    // Highlight
+    ctx.fillStyle = '#aabbff';
+    ctx.fillRect(cx - 1, py + 5, 2, 2);
+  }
+
+  private drawTree(ctx: CanvasRenderingContext2D, px: number, py: number, T: number) {
+    // Trunk
+    ctx.fillStyle = '#5a3d1f';
+    ctx.fillRect(px + 6, py + 9, 4, 5);
+    // Canopy layers
+    ctx.fillStyle = '#2d7a3a';
+    ctx.fillRect(px + 2, py + 4, 12, 6);
+    ctx.fillStyle = '#3da84c';
+    ctx.fillRect(px + 4, py + 2, 8, 4);
+  }
+
+  private drawWater(ctx: CanvasRenderingContext2D, px: number, py: number, T: number) {
+    ctx.fillStyle = '#1a4466';
+    ctx.fillRect(px, py, T, T);
+    // Wave highlights
+    ctx.fillStyle = '#2a6699';
+    ctx.fillRect(px + 2, py + 4, 5, 1);
+    ctx.fillRect(px + 9, py + 9, 4, 1);
+    ctx.fillRect(px + 1, py + 12, 3, 1);
+  }
+
+  private drawGrassDetail(ctx: CanvasRenderingContext2D, px: number, py: number, T: number, checker: boolean) {
+    // Grass tufts
+    ctx.fillStyle = checker ? '#3a7342' : '#327038';
+    ctx.fillRect(px + 3, py + 5, 1, 2);
+    ctx.fillRect(px + 10, py + 9, 1, 2);
+    ctx.fillRect(px + 7, py + 2, 1, 2);
+  }
+
+  // ── Spawn & walkability ────────────────────────────
   private spawnListForRole(roleKey: string, agentKey: string): Point[] {
-    if (agentKey.includes('main')) return [{ x: 10, y: 7 }, { x: 11, y: 7 }];
+    if (agentKey.includes('main')) return [{ x: 5, y: 4 }, { x: 6, y: 4 }];
     if (roleKey.includes('engineer') || roleKey.includes('tech-lead')) {
-      return [{ x: 4, y: 4 }, { x: 8, y: 4 }, { x: 4, y: 9 }, { x: 8, y: 9 }];
+      return [{ x: 4, y: 3 }, { x: 8, y: 3 }, { x: 4, y: 5 }, { x: 8, y: 5 }];
     }
     if (roleKey.includes('security') || roleKey.includes('qa') || roleKey.includes('devops')) {
-      return [{ x: 14, y: 5 }, { x: 15, y: 5 }, { x: 16, y: 5 }, { x: 13, y: 6 }];
+      return [{ x: 14, y: 3 }, { x: 16, y: 3 }, { x: 15, y: 5 }];
     }
     if (roleKey.includes('analyst') || roleKey.includes('pm') || roleKey.includes('architect')) {
-      return [{ x: 14, y: 8 }, { x: 16, y: 8 }, { x: 15, y: 11 }];
+      return [{ x: 5, y: 9 }, { x: 8, y: 9 }, { x: 5, y: 11 }];
     }
-    return [{ x: 10, y: 8 }, { x: 9, y: 7 }, { x: 11, y: 8 }];
+    if (roleKey.includes('release')) {
+      return [{ x: 14, y: 9 }, { x: 16, y: 9 }];
+    }
+    return [{ x: 5, y: 5 }, { x: 6, y: 5 }];
   }
 
   pickSpawn(roleKey: string, agentKey: string): Point {
@@ -357,12 +381,16 @@ export class OfficeMap {
       const y = Math.floor(Math.random() * this.rows);
       if (this.isWalkable(x, y)) return { x, y };
     }
-    return { x: 1, y: 1 };
+    return { x: 2, y: 2 };
   }
 
   isWalkable(x: number, y: number): boolean {
-    if (!this.inBounds(x, y)) return false;
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return false;
     const tile = this.grid[y][x];
-    return tile === TileType.Floor || tile === TileType.Path || tile === TileType.Bridge || tile === TileType.Rune;
+    return (
+      tile === TileType.Floor ||
+      tile === TileType.Grass ||
+      tile === TileType.Path
+    );
   }
 }

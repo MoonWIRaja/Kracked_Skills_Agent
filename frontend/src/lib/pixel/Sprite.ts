@@ -1,20 +1,23 @@
 /**
- * Sprite class adapted for pixel-agents character format
- * 
- * pixel-agents uses individual character spritesheets (char_0.png - char_5.png)
- * Each sheet contains: walk(down, left, right, up), idle, type/sit frames
- * Tile size: 16x16 pixels
- * 
- * Spritesheet Layout (approximate):
- * Row 0: Walk Down (3 frames)
- * Row 1: Walk Left (3 frames)  
- * Row 2: Walk Right (3 frames)
- * Row 3: Walk Up (3 frames)
- * Row 4: Sit/Type frames (2 frames)
- * Row 5: Idle (1 frame)
+ * Sprite class for pixel-agents character spritesheets
+ *
+ * Each char_N.png is an 8-column × 6-row grid of 16×16 cells.
+ * A single character occupies 1 column × 2 rows (16×32 px).
+ *
+ * Verified layout from actual spritesheet images:
+ *   Row 0-1: Walk Down  (4 frames, cols 0-3)  — each frame is 16w × 32h
+ *   Row 2-3: Walk Left  (4 frames, cols 0-3)
+ *            Walk Right (4 frames, cols 4-7)
+ *   Row 4-5: Walk Up    (4 frames, cols 0-3)
+ *            Idle Down  (1 frame, col 4)
+ *            Sit/Type   (2 frames, cols 5-6)
+ *
+ * Cell size: 16 × 16, but each frame uses 2 cells vertically = 16 × 32
  */
 
-export const SPRITE_SIZE = 16;
+export const CELL_SIZE = 16;     // single cell in the spritesheet
+export const FRAME_W = 16;       // character frame width
+export const FRAME_H = 32;       // character frame height (2 cells)
 
 export enum Direction {
   DOWN = 0,
@@ -27,6 +30,60 @@ export enum CharacterState {
   IDLE = 'idle',
   WALK = 'walk',
   TYPE = 'type',
+}
+
+/**
+ * Returns the source rectangle {sx, sy} in the spritesheet for a given
+ * animation state, direction, and frame index.
+ */
+function getFrameCoords(
+  state: CharacterState,
+  direction: Direction,
+  frame: number
+): { sx: number; sy: number } {
+  let col: number;
+  let rowPair: number; // each "row pair" = 2 cell-rows
+
+  switch (state) {
+    case CharacterState.WALK:
+      switch (direction) {
+        case Direction.DOWN:
+          rowPair = 0;
+          col = frame % 4;
+          break;
+        case Direction.LEFT:
+          rowPair = 1;
+          col = frame % 4;
+          break;
+        case Direction.RIGHT:
+          rowPair = 1;
+          col = 4 + (frame % 4);
+          break;
+        case Direction.UP:
+        default:
+          rowPair = 2;
+          col = frame % 4;
+          break;
+      }
+      break;
+
+    case CharacterState.TYPE:
+      rowPair = 2;
+      col = 5 + (frame % 2);  // cols 5-6 in row pair 2
+      break;
+
+    case CharacterState.IDLE:
+    default:
+      // Idle facing down = row pair 2, col 4
+      rowPair = 2;
+      col = 4;
+      break;
+  }
+
+  return {
+    sx: col * CELL_SIZE,
+    sy: rowPair * FRAME_H,   // rowPair * 32
+  };
 }
 
 export class CharacterSprite {
@@ -43,14 +100,11 @@ export class CharacterSprite {
   }
 
   /**
-   * Draw the character sprite
-   * @param ctx Canvas rendering context
-   * @param x World X position
-   * @param y World Y position  
-   * @param state Current animation state
-   * @param direction Facing direction
-   * @param frame Current animation frame (0-2 for walk, 0-1 for type)
-   * @param scale Render scale (2 = 32px characters on 16px tiles)
+   * Draw the character on the canvas.
+   *
+   * Because the game canvas is already scaled (ctx.scale(SCALE)),
+   * we draw at 1:1 here — the character renders as 16×32 native pixels
+   * and the outer SCALE (2×) makes it 32×64 on screen.
    */
   draw(
     ctx: CanvasRenderingContext2D,
@@ -59,72 +113,46 @@ export class CharacterSprite {
     state: CharacterState,
     direction: Direction,
     frame: number,
-    scale: number = 2
   ) {
     if (!this.loaded) return;
+    ctx.imageSmoothingEnabled = false;
 
-    ctx.imageSmoothingEnabled = false; // Crisp pixel art
-
-    let srcRow: number;
-    let srcCol: number;
-
-    switch (state) {
-      case CharacterState.WALK:
-        srcRow = direction; // 0=down, 1=left, 2=right, 3=up
-        srcCol = frame % 3; // 3 walk frames
-        break;
-      case CharacterState.TYPE:
-        srcRow = 4; // Sit/type row
-        srcCol = frame % 2; // 2 type frames
-        break;
-      case CharacterState.IDLE:
-      default:
-        srcRow = direction; // Use walk row but frame 0
-        srcCol = 0;
-        break;
-    }
+    const { sx, sy } = getFrameCoords(state, direction, frame);
 
     ctx.drawImage(
       this.image,
-      srcCol * SPRITE_SIZE, srcRow * SPRITE_SIZE,   // Source X, Y
-      SPRITE_SIZE, SPRITE_SIZE,                       // Source W, H
-      x, y,                                           // Dest X, Y
-      SPRITE_SIZE * scale, SPRITE_SIZE * scale        // Dest W, H
+      sx, sy,            // source position
+      FRAME_W, FRAME_H,  // source size (16×32)
+      x, y,              // destination position
+      FRAME_W, FRAME_H,  // destination size (drawn at 1:1, outer scale handles zoom)
     );
   }
 }
 
 /**
- * Fallback renderer for when sprites aren't loaded
- * Draws a colored square with a label
+ * Fallback renderer when sprite images aren't loaded.
+ * Draws a simple colored character shape.
  */
 export function drawFallbackCharacter(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   color: string,
-  name: string,
-  scale: number = 2
 ) {
-  const size = SPRITE_SIZE * scale;
-
   // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(x + size / 2, y + size - 2, size / 3, 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + FRAME_W / 2, y + FRAME_H - 2, 5, 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // Body
   ctx.fillStyle = color;
-  ctx.fillRect(x + 4, y + 6, size - 8, size - 8);
+  ctx.fillRect(x + 3, y + 14, 10, 14);
 
   // Head
   ctx.fillStyle = '#fca5a5';
-  ctx.fillRect(x + 6, y, size - 12, 10);
+  ctx.beginPath();
+  ctx.arc(x + FRAME_W / 2, y + 10, 5, 0, Math.PI * 2);
+  ctx.fill();
 
-  // Label
-  ctx.fillStyle = 'white';
-  ctx.font = '10px "Inter", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(`[${name}]`, x + size / 2, y - 4);
 }

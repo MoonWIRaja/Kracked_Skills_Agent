@@ -57,12 +57,46 @@
     },
     props: [],
     characterSheets: [],
+    roleSprites: {},
     agents: new Map(),
     events: [],
     usingWebPoll: !vscode,
     loadedAssets: 0,
     lastUpdate: null,
     ready: false,
+  };
+
+  const CHARACTER_DEFS = {
+    citizen1: { walk: 'Citizen1_Walk.png', idle: 'Citizen1_Idle.png', walkCols: 6, idleCols: 8 },
+    citizen2: { walk: 'Citizen2_Walk.png', idle: 'Citizen2_Idle.png', walkCols: 6, idleCols: 8 },
+    mage1: { walk: 'Mage1.png', idle: 'Mage1.png', walkCols: 7, idleCols: 7 },
+    mage3: { walk: 'Mage3.png', idle: 'Mage3.png', walkCols: 7, idleCols: 7 },
+    swordsman: {
+      walk: 'Swordsman_lvl1_Walk_with_shadow.png',
+      idle: 'Swordsman_lvl1_Idle_with_shadow.png',
+      walkCols: 6,
+      idleCols: 9,
+    },
+    guildmaster: { walk: 'Guildmaster.png', idle: 'Guildmaster.png', walkCols: 9, idleCols: 9 },
+  };
+
+  const ROLE_TO_CHARACTER = {
+    'main-agent': 'citizen1',
+    main: 'citizen1',
+    master: 'citizen1',
+    'master-agent': 'citizen1',
+    'product-manager': 'citizen2',
+    pm: 'citizen2',
+    engineer: 'mage1',
+    'tech-lead': 'mage1',
+    analyst: 'mage3',
+    architect: 'mage3',
+    qa: 'swordsman',
+    quality: 'swordsman',
+    security: 'swordsman',
+    devops: 'guildmaster',
+    'release-manager': 'guildmaster',
+    release: 'guildmaster',
   };
 
   const imageCache = new Map();
@@ -284,6 +318,161 @@
 
   function normalizeRelPath(relPath) {
     return String(relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  }
+
+  function normalizeRoleKey(raw) {
+    return String(raw || '')
+      .toLowerCase()
+      .replace(/[_\s]+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  }
+
+  function collectCatalogImages(catalog) {
+    return dedupePaths([
+      ...(catalog && Array.isArray(catalog.images) ? catalog.images : []),
+      ...(catalog && Array.isArray(catalog.characterSheets) ? catalog.characterSheets : []),
+      ...(catalog && Array.isArray(catalog.propSprites) ? catalog.propSprites : []),
+      ...(catalog && Array.isArray(catalog.tileAtlases) ? catalog.tileAtlases : []),
+      ...(catalog && Array.isArray(catalog.objectAtlases) ? catalog.objectAtlases : []),
+    ]);
+  }
+
+  function pickCatalogImageByBase(images, baseName, options = {}) {
+    const target = String(baseName || '').toLowerCase();
+    if (!target) return null;
+    const preferPack = String(options.preferPack || '').toLowerCase();
+    const preferNoShadowless = options.preferNoShadowless !== false;
+    const preferPngFolder = options.preferPngFolder !== false;
+
+    const candidates = (images || []).filter((relPath) => {
+      const lower = String(relPath || '').toLowerCase();
+      return lower.endsWith(`/${target}`);
+    });
+    if (candidates.length === 0) return null;
+
+    const sorted = [...candidates].sort((a, b) => {
+      const al = a.toLowerCase();
+      const bl = b.toLowerCase();
+      let scoreA = 0;
+      let scoreB = 0;
+
+      if (preferPack) {
+        if (al.includes(preferPack)) scoreA += 20;
+        if (bl.includes(preferPack)) scoreB += 20;
+      }
+      if (preferPngFolder) {
+        if (al.includes('/png/')) scoreA += 12;
+        if (bl.includes('/png/')) scoreB += 12;
+        if (al.includes('/tiled_files/')) scoreA -= 8;
+        if (bl.includes('/tiled_files/')) scoreB -= 8;
+      }
+      if (preferNoShadowless) {
+        if (al.includes('_without_shadow')) scoreA -= 6;
+        if (bl.includes('_without_shadow')) scoreB -= 6;
+      }
+
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return al.localeCompare(bl);
+    });
+
+    return sorted[0] || null;
+  }
+
+  function resolveCharacterKey(agentId, role, name) {
+    const roleKey = normalizeRoleKey(role);
+    const idKey = normalizeRoleKey(agentId);
+    const nameKey = normalizeRoleKey(name);
+
+    if (ROLE_TO_CHARACTER[roleKey]) return ROLE_TO_CHARACTER[roleKey];
+
+    for (const [pattern, charKey] of Object.entries(ROLE_TO_CHARACTER)) {
+      if (roleKey.includes(pattern) || idKey.includes(pattern) || nameKey.includes(pattern)) {
+        return charKey;
+      }
+    }
+
+    const available = Object.keys(CHARACTER_DEFS);
+    if (available.length === 0) return 'citizen1';
+
+    const token = `${idKey}|${roleKey}|${nameKey}`;
+    const index = hashString(token) % available.length;
+    return available[index];
+  }
+
+  async function buildRoleSpriteCatalog(catalog) {
+    const images = collectCatalogImages(catalog);
+    const preferredPack = 'craftpix-net-189780-free-top-down-pixel-art-guild-hall-asset-pack';
+    const roleSprites = {};
+
+    async function loadIfAvailable(relPath) {
+      if (!relPath) return null;
+      try {
+        return await loadImage(relPath);
+      } catch {
+        return null;
+      }
+    }
+
+    for (const [key, def] of Object.entries(CHARACTER_DEFS)) {
+      const walkPath = pickCatalogImageByBase(images, def.walk, {
+        preferPack,
+        preferNoShadowless: true,
+      });
+      const idlePath = pickCatalogImageByBase(images, def.idle, {
+        preferPack,
+        preferNoShadowless: true,
+      }) || walkPath;
+
+      const walkImage = await loadIfAvailable(walkPath);
+      const idleImage = await loadIfAvailable(idlePath);
+      if (!walkImage) continue;
+
+      const walkCols = Math.max(1, Number(def.walkCols || 6));
+      const idleCols = Math.max(1, Number(def.idleCols || walkCols));
+      const walkRows = 4;
+      const idleRows = 4;
+
+      const walkFrameWidth = Math.max(1, Math.floor((walkImage.naturalWidth || walkImage.width) / walkCols));
+      const walkFrameHeight = Math.max(1, Math.floor((walkImage.naturalHeight || walkImage.height) / walkRows));
+
+      const effectiveIdleImage = idleImage || walkImage;
+      const idleFrameWidth = Math.max(1, Math.floor((effectiveIdleImage.naturalWidth || effectiveIdleImage.width) / idleCols));
+      const idleFrameHeight = Math.max(1, Math.floor((effectiveIdleImage.naturalHeight || effectiveIdleImage.height) / idleRows));
+
+      roleSprites[key] = {
+        kind: 'roleSprite',
+        key,
+        walk: {
+          image: walkImage,
+          relPath: walkPath || null,
+          cols: walkCols,
+          rows: walkRows,
+          frameWidth: walkFrameWidth,
+          frameHeight: walkFrameHeight,
+        },
+        idle: {
+          image: effectiveIdleImage,
+          relPath: idlePath || walkPath || null,
+          cols: idleCols,
+          rows: idleRows,
+          frameWidth: idleFrameWidth,
+          frameHeight: idleFrameHeight,
+        },
+      };
+    }
+
+    return roleSprites;
+  }
+
+  function resolveAgentSprite(agentId, role, name) {
+    const characterKey = resolveCharacterKey(agentId, role, name);
+    const roleSprite = state.roleSprites && state.roleSprites[characterKey];
+    if (roleSprite) {
+      return { sprite: roleSprite, characterKey };
+    }
+    return { sprite: randomFrom(state.characterSheets, null), characterKey: null };
   }
 
   function buildResourceUrl(relPath) {
@@ -641,12 +830,14 @@
     );
 
     state.characterSheets = charSheets.filter(Boolean);
+    state.roleSprites = await buildRoleSpriteCatalog(catalog);
 
     state.loadedAssets =
       state.pools.floors.length
       + state.pools.walls.length
       + state.props.length
-      + state.characterSheets.length;
+      + state.characterSheets.length
+      + Object.keys(state.roleSprites).length;
   }
 
   function pickPropForGroup(group, props) {
@@ -683,13 +874,14 @@
 
     if (!state.agents.has(key)) {
       const initialRole = patch.role || 'Professional Agent';
+      const initialName = patch.name || `Agent ${key}`;
       const lane = roleLane(initialRole);
       const start = randomFrom(lane, [26, 16]);
-      const sprite = randomFrom(state.characterSheets, null);
+      const resolved = resolveAgentSprite(key, initialRole, initialName);
 
       state.agents.set(key, {
         id: key,
-        name: patch.name || `Agent ${key}`,
+        name: initialName,
         role: initialRole,
         status: patch.status || 'active',
         x: start[0],
@@ -697,7 +889,8 @@
         tx: start[0],
         ty: start[1],
         lane,
-        sprite,
+        sprite: resolved.sprite,
+        characterKey: resolved.characterKey,
         bubble: '',
         bubbleUntil: 0,
         lastSeen: Date.now(),
@@ -705,15 +898,25 @@
     }
 
     const agent = state.agents.get(key);
-    if (patch.name) agent.name = patch.name;
+    let refreshSprite = false;
+    if (patch.name) {
+      agent.name = patch.name;
+      refreshSprite = true;
+    }
     if (patch.role) {
       agent.role = patch.role;
       agent.lane = roleLane(agent.role);
+      refreshSprite = true;
     }
     if (patch.status) agent.status = patch.status;
     if (patch.message) {
       agent.bubble = String(patch.message).trim().slice(0, 64);
       agent.bubbleUntil = Date.now() + 4200;
+    }
+    if (refreshSprite) {
+      const resolved = resolveAgentSprite(agent.id, agent.role, agent.name);
+      if (resolved.sprite) agent.sprite = resolved.sprite;
+      agent.characterKey = resolved.characterKey || agent.characterKey || null;
     }
     if (!agent.sprite && state.characterSheets.length > 0) {
       agent.sprite = randomFrom(state.characterSheets);
@@ -964,69 +1167,114 @@
     // Agents sorted by Y for depth.
     const agents = [...state.agents.values()].sort((a, b) => a.y - b.y);
     const time = performance.now() / 1000;
+    const now = Date.now();
 
     for (const agent of agents) {
       const px = agent.x * TILE;
       const py = agent.y * TILE;
+      const centerX = px + TILE / 2;
+
+      const vx = agent.tx - agent.x;
+      const vy = agent.ty - agent.y;
+      const moving = Math.hypot(vx, vy) > 0.08;
+      let row = 0;
+      if (Math.abs(vy) > Math.abs(vx)) {
+        row = vy < 0 ? 3 : 0;
+      } else {
+        row = vx < 0 ? 1 : 2;
+      }
 
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(px + 4, py + 13, 8, 2);
+      ctx.beginPath();
+      ctx.ellipse(centerX, py + 14, 6, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
 
-      if (agent.sprite && agent.sprite.image) {
+      let drewSprite = false;
+      if (agent.sprite && agent.sprite.kind === 'roleSprite') {
+        const roleSprite = agent.sprite;
+        const sheet = moving ? roleSprite.walk : (roleSprite.idle || roleSprite.walk);
+        if (sheet && sheet.image && sheet.frameWidth > 0 && sheet.frameHeight > 0) {
+          const maxFrames = moving
+            ? Math.max(1, Math.min(sheet.cols, 6))
+            : Math.max(1, Math.min(sheet.cols, 4));
+          const frameInDir = moving
+            ? Math.floor(time * 6.66) % maxFrames
+            : Math.floor(time * 3.33) % maxFrames;
+
+          const safeRow = clamp(row, 0, Math.max(0, sheet.rows - 1));
+          const sx = frameInDir * sheet.frameWidth;
+          const sy = safeRow * sheet.frameHeight;
+          const dx = Math.round(px + (TILE - 24) / 2);
+          const dy = Math.round(py + TILE - 32);
+          ctx.drawImage(sheet.image, sx, sy, sheet.frameWidth, sheet.frameHeight, dx, dy, 24, 32);
+          drewSprite = true;
+        }
+      } else if (agent.sprite && agent.sprite.image) {
         const sprite = agent.sprite;
         const fw = sprite.frameWidth;
         const fh = sprite.frameHeight;
 
-        const vx = agent.tx - agent.x;
-        const vy = agent.ty - agent.y;
-        let row = 0;
-        if (Math.abs(vy) > Math.abs(vx)) {
-          row = vy < 0 ? 3 : 0;
-        } else {
-          row = vx < 0 ? 1 : 2;
-        }
-        row = clamp(row, 0, Math.max(0, sprite.rows - 1));
-
-        const moving = Math.hypot(vx, vy) > 0.08;
         const perDir = Math.max(1, sprite.framesPerDirection);
-        const frameInDir = moving ? Math.floor(time * 6) % perDir : 0;
+        const walkFrames = Math.max(1, Math.min(perDir, 6));
+        const idleFrames = Math.max(1, Math.min(perDir, 4));
+        const frameInDir = moving
+          ? Math.floor(time * 6.66) % walkFrames
+          : Math.floor(time * 3.33) % idleFrames;
+
+        row = clamp(row, 0, Math.max(0, sprite.rows - 1));
         const frameIndex = row * perDir + frameInDir;
 
         const sx = clamp(frameIndex, 0, sprite.cols - 1) * fw;
         const sy = row * fh;
-
-        const targetH = 28;
-        const targetW = Math.round((fw / fh) * targetH);
-        const dx = Math.round(px + (TILE - targetW) / 2);
-        const dy = Math.round(py + TILE - targetH);
-
-        ctx.drawImage(sprite.image, sx, sy, fw, fh, dx, dy, targetW, targetH);
-      } else {
-        ctx.fillStyle = '#f4c9a2';
-        ctx.fillRect(px + 5, py + 4, 6, 5);
-        ctx.fillStyle = '#7cd4ff';
-        ctx.fillRect(px + 4, py + 9, 8, 6);
+        const dx = Math.round(px + (TILE - 24) / 2);
+        const dy = Math.round(py + TILE - 32);
+        ctx.drawImage(sprite.image, sx, sy, fw, fh, dx, dy, 24, 32);
+        drewSprite = true;
       }
 
-      ctx.fillStyle = '#ebf5ff';
-      ctx.font = '5px Consolas';
+      if (!drewSprite) {
+        ctx.fillStyle = '#f4c9a2';
+        ctx.fillRect(centerX - 3, py - 10, 6, 5);
+        ctx.fillStyle = '#7cd4ff';
+        ctx.fillRect(centerX - 4, py - 5, 8, 6);
+      }
+
+      const nameY = py - 20;
+      ctx.font = '5px "Silkscreen", Consolas, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(agent.name, px + 8, py + 2);
+      const nameWidth = ctx.measureText(agent.name).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(centerX - nameWidth / 2 - 2, nameY - 5, nameWidth + 4, 7);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(agent.name, centerX, nameY);
 
-      if (agent.bubble && Date.now() < agent.bubbleUntil) {
+      if (agent.bubble && now < agent.bubbleUntil) {
         const text = agent.bubble;
-        ctx.font = '5px Consolas';
-        const width = Math.min(152, ctx.measureText(text).width + 8);
-        const height = 11;
-        const bx = px + 8 - (width / 2);
-        const by = py - 13;
+        ctx.font = '5px "Silkscreen", Consolas, monospace';
+        const padding = 3;
+        const width = Math.min(130, ctx.measureText(text).width + padding * 2);
+        const height = 10;
+        const bx = centerX - (width / 2);
+        const by = nameY - 14;
 
-        ctx.fillStyle = 'rgba(8,14,27,0.92)';
-        ctx.fillRect(bx, by, width, height);
-        ctx.strokeStyle = '#5e82bb';
-        ctx.strokeRect(bx, by, width, height);
-        ctx.fillStyle = '#dcedff';
-        ctx.fillText(text, px + 8, by + 7, width - 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(bx, by, width, height, 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(bx, by, width, height);
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, by + height + 2);
+        ctx.lineTo(centerX - 3, by + height);
+        ctx.lineTo(centerX + 3, by + height);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#000000';
+        ctx.fillText(text, centerX, by + 7, width - padding * 2);
       }
     }
 

@@ -279,9 +279,6 @@
     if (tileType === TILE_WALL) return state.pools.walls;
     if (tileType === TILE_WATER) return state.pools.water.length ? state.pools.water : state.pools.outdoor;
     if (tileType === TILE_OUTDOOR) return state.pools.outdoor.length ? state.pools.outdoor : state.pools.floors;
-    if (tileType === TILE_FLOOR_OPS || tileType === TILE_FLOOR_LOUNGE) {
-      return state.pools.decor.length ? state.pools.decor : state.pools.floors;
-    }
     return state.pools.floors;
   }
 
@@ -370,28 +367,43 @@
     return (opaque / total) >= minRatio;
   }
 
-  function extractCellsFromAtlas(image, relPath) {
+  function extractCellsFromAtlas(image, relPath, options = {}) {
     const normalized = normalizeRelPath(relPath).toLowerCase();
+    const skipLikelyCharacterSheet =
+      /(with_shadow|idle_|walk_|run_|vampire|orc|slime|citizen|guildmaster|reader|attacked|manequin)/i.test(normalized);
+    if (skipLikelyCharacterSheet && !options.allowCharacterSheet) {
+      return [];
+    }
 
     const off = document.createElement('canvas');
     off.width = image.naturalWidth || image.width;
     off.height = image.naturalHeight || image.height;
+    if (off.width < TILE || off.height < TILE) return [];
+
     const offCtx = off.getContext('2d', { willReadFrequently: true });
     offCtx.drawImage(image, 0, 0);
 
     const cells = [];
     const cols = Math.floor(off.width / TILE);
     const rows = Math.floor(off.height / TILE);
+    if (cols <= 0 || rows <= 0) return [];
 
     const isWall = /(wall|window|door)/i.test(normalized);
     const isWater = /(water|coast)/i.test(normalized);
     const isOutdoor = /(ground|grass|exterior|street|tree|rock|ruins)/i.test(normalized);
     const isDecor = /(object|interior|decorative|details|house)/i.test(normalized);
 
-    const minRatio = isWall ? 0.18 : isDecor ? 0.12 : 0.62;
+    const minRatio = Number.isFinite(options.minOpaqueRatio)
+      ? Number(options.minOpaqueRatio)
+      : (isWall ? 0.38 : isDecor ? 0.62 : 0.72);
+    const maxCells = Number.isFinite(options.maxCells) ? Math.max(1, Number(options.maxCells)) : 320;
+    const stride = Math.max(1, Math.floor((cols * rows) / maxCells));
+    let sampled = 0;
 
     for (let y = 0; y < rows; y += 1) {
       for (let x = 0; x < cols; x += 1) {
+        if ((sampled++ % stride) !== 0) continue;
+
         const sx = x * TILE;
         const sy = y * TILE;
         const data = offCtx.getImageData(sx, sy, TILE, TILE);
@@ -458,6 +470,29 @@
     });
   }
 
+  function dedupePaths(paths) {
+    return [...new Set((paths || []).map((item) => normalizeRelPath(item)).filter(Boolean))];
+  }
+
+  function filterAtlasPaths(paths, options = {}) {
+    const include = (options.include || []).map((s) => String(s || '').toLowerCase()).filter(Boolean);
+    const exclude = (options.exclude || []).map((s) => String(s || '').toLowerCase()).filter(Boolean);
+    const limit = Number.isFinite(options.limit) ? Math.max(1, Number(options.limit)) : 12;
+
+    const filtered = dedupePaths(paths).filter((relPath) => {
+      const lower = String(relPath || '').toLowerCase();
+      if (!lower.endsWith('.png')) return false;
+      if (exclude.some((token) => lower.includes(token))) return false;
+      if (include.length > 0 && !include.some((token) => lower.includes(token))) return false;
+      if (/(with_shadow|idle_|walk_|run_|vampire|orc|slime|citizen|guildmaster|reader|attacked|manequin)/i.test(lower)) {
+        return false;
+      }
+      return true;
+    });
+
+    return prioritizeByKeywords(filtered, include).slice(0, limit);
+  }
+
   async function loadCatalog() {
     const candidates = [];
     if (CATALOG_URI) candidates.push(CATALOG_URI);
@@ -496,72 +531,83 @@
   }
 
   async function buildAssetPools(catalog) {
-    const tileAtlasPaths = prioritizeByKeywords(
-      [...new Set([...(catalog.tileAtlases || []), ...(catalog.objectAtlases || [])])].slice(0, 42),
-      [
-        'walls_floor',
-        'walls_interior',
-        'walls_street',
-        'interior_objects',
-        'windows_doors',
-        'interior',
-        'exterior',
-        'ground_grass_details',
-        'house_details',
-        'objects',
-        'ground',
-        'details',
-        'water',
-      ]
-    );
+    const atlasUniverse = dedupePaths([...(catalog.tileAtlases || []), ...(catalog.objectAtlases || [])]);
 
-    const atlasImages = await Promise.all(
-      tileAtlasPaths.map(async (relPath) => {
-        try {
-          const image = await loadImage(relPath);
-          return { relPath, image };
-        } catch {
-          return null;
-        }
-      })
-    );
+    const floorAtlases = filterAtlasPaths(atlasUniverse, {
+      include: ['walls_floor', 'floor', 'interior', 'ground'],
+      exclude: ['objects', 'interior_objects', 'windows_doors', 'house_details', 'water', 'coast'],
+      limit: 10,
+    });
+    const wallAtlases = filterAtlasPaths(atlasUniverse, {
+      include: ['walls_interior', 'walls_street', 'wall', 'windows_doors', 'house_details', 'door'],
+      exclude: ['water', 'coast'],
+      limit: 8,
+    });
+    const outdoorAtlases = filterAtlasPaths(atlasUniverse, {
+      include: ['ground', 'grass', 'exterior', 'street', 'details', 'rocks'],
+      exclude: ['water', 'coast', 'interior_objects', 'objects'],
+      limit: 10,
+    });
+    const waterAtlases = filterAtlasPaths(atlasUniverse, {
+      include: ['water', 'coast'],
+      exclude: [],
+      limit: 6,
+    });
 
-    const pools = {
-      floors: [],
-      walls: [],
-      outdoor: [],
-      water: [],
-      decor: [],
-    };
+    async function loadAtlasGroup(paths, extractOptions) {
+      const atlasImages = await Promise.all(
+        paths.map(async (relPath) => {
+          try {
+            const image = await loadImage(relPath);
+            return { relPath, image };
+          } catch {
+            return null;
+          }
+        })
+      );
 
-    for (const entry of atlasImages) {
-      if (!entry) continue;
-      const cells = extractCellsFromAtlas(entry.image, entry.relPath);
-      for (const cell of cells) {
-        if (cell.wall) pools.walls.push(cell);
-        if (cell.water) pools.water.push(cell);
-        if (cell.outdoor) pools.outdoor.push(cell);
-        if (cell.decor) pools.decor.push(cell);
-        if (!cell.wall && !cell.water) pools.floors.push(cell);
+      const cells = [];
+      for (const entry of atlasImages) {
+        if (!entry) continue;
+        const extracted = extractCellsFromAtlas(entry.image, entry.relPath, extractOptions);
+        cells.push(...extracted);
       }
+      return cells;
     }
 
+    const floors = await loadAtlasGroup(floorAtlases, { minOpaqueRatio: 0.76, maxCells: 520 });
+    const walls = await loadAtlasGroup(wallAtlases, { minOpaqueRatio: 0.48, maxCells: 360 });
+    const outdoor = await loadAtlasGroup(outdoorAtlases, { minOpaqueRatio: 0.7, maxCells: 460 });
+    const water = await loadAtlasGroup(waterAtlases, { minOpaqueRatio: 0.52, maxCells: 220 });
+
+    const decorAtlases = filterAtlasPaths(atlasUniverse, {
+      include: ['interior_objects', 'objects', 'windows_doors'],
+      exclude: ['with_shadow', 'idle_', 'walk_', 'run_'],
+      limit: 5,
+    });
+    const decor = await loadAtlasGroup(decorAtlases, { minOpaqueRatio: 0.68, maxCells: 180 });
+
     state.pools = {
-      floors: pools.floors.slice(0, 2000),
-      walls: pools.walls.slice(0, 1000),
-      outdoor: pools.outdoor.slice(0, 1200),
-      water: pools.water.slice(0, 400),
-      decor: pools.decor.slice(0, 1200),
+      floors: floors.slice(0, 520),
+      walls: walls.slice(0, 360),
+      outdoor: outdoor.slice(0, 460),
+      water: water.slice(0, 220),
+      decor: decor.slice(0, 180),
     };
 
-    const propPaths = selectProps(catalog).slice(0, 120);
+    const propPaths = selectProps(catalog).slice(0, 140);
     const propImages = await Promise.all(
       propPaths.map(async (relPath) => {
         try {
           const image = await loadImage(relPath);
+          const lower = String(relPath || '').toLowerCase();
+          if (/(with_shadow|idle_|walk_|run_|animation|sheet|sprite|atlas)/i.test(lower)) return null;
           const w = image.naturalWidth || image.width;
           const h = image.naturalHeight || image.height;
-          if (w < 8 || h < 8 || w > 600 || h > 600) return null;
+          if (w < 8 || h < 8 || w > 192 || h > 192) return null;
+          const ratio = w / h;
+          if (ratio < 0.45 || ratio > 2.4) return null;
+          if ((w * h) > 22000) return null;
           return { relPath, image, w, h };
         } catch {
           return null;
@@ -603,10 +649,30 @@
       + state.characterSheets.length;
   }
 
+  function pickPropForGroup(group, props) {
+    if (!Array.isArray(props) || props.length === 0) return null;
+    const tokenMap = {
+      meeting: ['desk', 'table', 'chair', 'book', 'monitor', 'computer', 'lamp', 'vending'],
+      workspace: ['desk', 'chair', 'computer', 'monitor', 'bookcase', 'plant', 'books'],
+      ops: ['monitor', 'computer', 'server', 'console', 'desk', 'chair', 'vending'],
+      lounge: ['sofa', 'couch', 'plant', 'book', 'table', 'lamp', 'chair'],
+      outdoor: ['tree', 'rock', 'plant', 'fern', 'mushroom', 'flag', 'fire', 'statue'],
+    };
+
+    const keywords = tokenMap[group] || [];
+    if (keywords.length === 0) return randomFrom(props);
+
+    const scoped = props.filter((item) => {
+      const lower = String(item && item.relPath ? item.relPath : '').toLowerCase();
+      return keywords.some((key) => lower.includes(key));
+    });
+    return randomFrom(scoped.length > 0 ? scoped : props);
+  }
+
   function assignPropsToWorld() {
     if (!Array.isArray(WORLD.propSlots)) return;
     for (const slot of WORLD.propSlots) {
-      const sprite = randomFrom(state.props);
+      const sprite = pickPropForGroup(slot.group, state.props);
       if (!sprite) continue;
       slot.sprite = sprite;
     }

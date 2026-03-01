@@ -18,7 +18,7 @@ npx @vscode/vsce package
 Install VSIX:
 
 ```bash
-code --install-extension kd-pixel-panel-0.4.0.vsix --force
+code --install-extension kd-pixel-panel-0.4.1.vsix --force
 ```
 
 ## Open Panel

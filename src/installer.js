@@ -64,7 +64,7 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_MIN_VERSION = '0.4.0';
+const PANEL_MIN_VERSION = '0.4.1';
 const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v5';
 const PANEL_MIN_WEBVIEW_JS_BYTES = 25000;
 
@@ -94,6 +94,14 @@ function copyDirRecursive(src, dest) {
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
+    const normalizedSrc = srcPath.replace(/\\/g, '/').toLowerCase();
+    const lowerName = String(entry.name || '').toLowerCase();
+
+    // Skip generated/cached artifacts; they are rebuilt in target workspace.
+    if (normalizedSrc.includes('/dist/webview/kd-asset-pack/extracted')) continue;
+    if (normalizedSrc.includes('/__macosx/')) continue;
+    if (lowerName.startsWith('._')) continue;
+    if (lowerName.endsWith('.vsix')) continue;
 
     if (entry.isDirectory()) {
       copyDirRecursive(srcPath, destPath);

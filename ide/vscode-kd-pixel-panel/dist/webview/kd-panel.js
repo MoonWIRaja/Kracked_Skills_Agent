@@ -70,8 +70,15 @@
     props: [],
     characterSheets: [],
     roleSprites: {},
-    tileAtlasInterior: null,
-    tileAtlasStreet: null,
+    themeTiles: {
+      main: [],
+      meeting: [],
+      ops: [],
+      lounge: [],
+      wall: [],
+      outdoor: [],
+      water: [],
+    },
     agents: new Map(),
     events: [],
     usingWebPoll: !vscode,
@@ -346,6 +353,99 @@
     return state.pools.floors;
   }
 
+  function inHueRange(h, min, max) {
+    if (!Number.isFinite(h)) return false;
+    if (min <= max) return h >= min && h <= max;
+    return h >= min || h <= max;
+  }
+
+  function rankTileCandidates(cells, matcher) {
+    const list = Array.isArray(cells) ? cells : [];
+    return list
+      .map((cell) => {
+        const stats = cell && cell.stats ? cell.stats : {};
+        const base = Number(matcher(stats, cell) || 0);
+        const edge = Number(stats.edgeOpaqueRatio || 0);
+        const opaque = Number(stats.opaqueRatio || 0);
+        const bonus = (edge * 0.3) + (opaque * 0.2);
+        return { cell, score: base + bonus };
+      })
+      .filter((entry) => entry.score > 0.1)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.cell);
+  }
+
+  function buildThemePool(candidates, matcher, limit, fallback) {
+    const scored = rankTileCandidates(candidates, matcher);
+    if (scored.length >= 4) return scored.slice(0, limit);
+    if (Array.isArray(fallback) && fallback.length > 0) return fallback.slice(0, Math.max(1, limit));
+    return scored.slice(0, Math.max(1, limit));
+  }
+
+  function buildThemeTiles() {
+    const floors = Array.isArray(state.pools.floors) ? state.pools.floors : [];
+    const walls = Array.isArray(state.pools.walls) ? state.pools.walls : [];
+    const outdoor = Array.isArray(state.pools.outdoor) ? state.pools.outdoor : [];
+    const water = Array.isArray(state.pools.water) ? state.pools.water : [];
+    const floorWall = [...floors, ...walls];
+    const outdoorFloor = [...outdoor, ...floors];
+
+    state.themeTiles.main = buildThemePool(
+      floors,
+      (s) => (inHueRange(s.hue, 10, 55) ? 1 : 0) + (s.sat > 0.12 ? 0.8 : 0) + (s.lum > 0.2 && s.lum < 0.65 ? 0.4 : 0),
+      28,
+      floors
+    );
+
+    state.themeTiles.meeting = buildThemePool(
+      floors,
+      (s) => (inHueRange(s.hue, 8, 48) ? 1 : 0) + (s.sat > 0.14 ? 0.6 : 0) + (s.lum < 0.48 ? 0.6 : 0),
+      24,
+      state.themeTiles.main.length ? state.themeTiles.main : floors
+    );
+
+    state.themeTiles.ops = buildThemePool(
+      floorWall,
+      (s) => ((inHueRange(s.hue, 180, 260) || s.sat < 0.18) ? 0.9 : 0) + (s.lum > 0.2 && s.lum < 0.62 ? 0.5 : 0),
+      24,
+      floorWall
+    );
+
+    state.themeTiles.lounge = buildThemePool(
+      floorWall,
+      (s) => (inHueRange(s.hue, 185, 250) ? 1 : 0) + (s.sat > 0.1 ? 0.5 : 0) + (s.lum > 0.28 ? 0.3 : 0),
+      24,
+      state.themeTiles.ops.length ? state.themeTiles.ops : floorWall
+    );
+
+    state.themeTiles.wall = buildThemePool(
+      walls.length ? walls : floorWall,
+      (s) => (s.lum < 0.45 ? 1 : 0) + (s.edgeOpaqueRatio > 0.84 ? 0.8 : 0) + (s.sat < 0.42 ? 0.2 : 0),
+      30,
+      walls.length ? walls : floorWall
+    );
+
+    state.themeTiles.outdoor = buildThemePool(
+      outdoorFloor,
+      (s) => (inHueRange(s.hue, 70, 165) ? 1 : 0) + (s.sat > 0.11 ? 0.6 : 0) + (s.lum > 0.17 && s.lum < 0.72 ? 0.3 : 0),
+      34,
+      outdoorFloor
+    );
+
+    state.themeTiles.water = buildThemePool(
+      water.length ? water : outdoorFloor,
+      (s) => (inHueRange(s.hue, 155, 260) ? 1 : 0) + (s.sat > 0.1 ? 0.6 : 0) + (s.lum < 0.7 ? 0.2 : 0),
+      20,
+      water.length ? water : outdoorFloor
+    );
+  }
+
+  function pickTileVariant(pool, x, y, seed) {
+    if (!Array.isArray(pool) || pool.length === 0) return null;
+    const n = Math.floor(tileRand(x, y, seed) * pool.length) % pool.length;
+    return pool[n];
+  }
+
   function normalizeRelPath(relPath) {
     return String(relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
   }
@@ -574,16 +674,70 @@
     return promise;
   }
 
-  function isOpaqueCell(imageData, minRatio) {
-    const data = imageData.data;
-    let opaque = 0;
-    const total = data.length / 4;
+  function rgbToHsl(r, g, b) {
+    const rn = clamp(r / 255, 0, 1);
+    const gn = clamp(g / 255, 0, 1);
+    const bn = clamp(b / 255, 0, 1);
+    const max = Math.max(rn, gn, bn);
+    const min = Math.min(rn, gn, bn);
+    const l = (max + min) / 2;
+    if (max === min) return { h: 0, s: 0, l };
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h = 0;
+    if (max === rn) h = (gn - bn) / d + (gn < bn ? 6 : 0);
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    return { h: h * 60, s, l };
+  }
 
-    for (let i = 3; i < data.length; i += 4) {
-      if (data[i] > 38) opaque += 1;
+  function analyzeCell(imageData) {
+    const data = imageData.data;
+    const w = imageData.width || TILE;
+    const h = imageData.height || TILE;
+    const total = w * h;
+
+    let opaque = 0;
+    let edgeOpaque = 0;
+    let edgeTotal = 0;
+    let rSum = 0;
+    let gSum = 0;
+    let bSum = 0;
+
+    for (let y = 0; y < h; y += 1) {
+      for (let x = 0; x < w; x += 1) {
+        const idx = (y * w + x) * 4;
+        const a = data[idx + 3];
+        const isOpaque = a > 38;
+        if (isOpaque) {
+          opaque += 1;
+          rSum += data[idx];
+          gSum += data[idx + 1];
+          bSum += data[idx + 2];
+        }
+        if (x === 0 || y === 0 || x === (w - 1) || y === (h - 1)) {
+          edgeTotal += 1;
+          if (isOpaque) edgeOpaque += 1;
+        }
+      }
     }
 
-    return (opaque / total) >= minRatio;
+    const opaqueCount = Math.max(1, opaque);
+    const avgR = rSum / opaqueCount;
+    const avgG = gSum / opaqueCount;
+    const avgB = bSum / opaqueCount;
+    const hsl = rgbToHsl(avgR, avgG, avgB);
+
+    return {
+      opaqueRatio: opaque / Math.max(1, total),
+      edgeOpaqueRatio: edgeOpaque / Math.max(1, edgeTotal),
+      avgR,
+      avgG,
+      avgB,
+      hue: hsl.h,
+      sat: hsl.s,
+      lum: hsl.l,
+    };
   }
 
   function extractCellsFromAtlas(image, relPath, options = {}) {
@@ -615,6 +769,9 @@
     const minRatio = Number.isFinite(options.minOpaqueRatio)
       ? Number(options.minOpaqueRatio)
       : (isWall ? 0.38 : isDecor ? 0.62 : 0.72);
+    const minEdgeRatio = Number.isFinite(options.minEdgeOpaqueRatio)
+      ? Number(options.minEdgeOpaqueRatio)
+      : (isWater ? 0.25 : isDecor ? 0.5 : 0.78);
     const maxCells = Number.isFinite(options.maxCells) ? Math.max(1, Number(options.maxCells)) : 320;
     const stride = Math.max(1, Math.floor((cols * rows) / maxCells));
     let sampled = 0;
@@ -626,7 +783,9 @@
         const sx = x * TILE;
         const sy = y * TILE;
         const data = offCtx.getImageData(sx, sy, TILE, TILE);
-        if (!isOpaqueCell(data, minRatio)) continue;
+        const stats = analyzeCell(data);
+        if (stats.opaqueRatio < minRatio) continue;
+        if (stats.edgeOpaqueRatio < minEdgeRatio) continue;
 
         cells.push({
           image,
@@ -639,6 +798,7 @@
           water: isWater,
           outdoor: isOutdoor,
           decor: isDecor,
+          stats,
         });
       }
     }
@@ -794,24 +954,24 @@
       return cells;
     }
 
-    const floors = await loadAtlasGroup(floorAtlases, { minOpaqueRatio: 0.82, maxCells: 80 });
-    const walls = await loadAtlasGroup(wallAtlases, { minOpaqueRatio: 0.55, maxCells: 60 });
-    const outdoor = await loadAtlasGroup(outdoorAtlases, { minOpaqueRatio: 0.78, maxCells: 60 });
-    const water = await loadAtlasGroup(waterAtlases, { minOpaqueRatio: 0.58, maxCells: 40 });
+    const floors = await loadAtlasGroup(floorAtlases, { minOpaqueRatio: 0.86, minEdgeOpaqueRatio: 0.86, maxCells: 120 });
+    const walls = await loadAtlasGroup(wallAtlases, { minOpaqueRatio: 0.62, minEdgeOpaqueRatio: 0.74, maxCells: 110 });
+    const outdoor = await loadAtlasGroup(outdoorAtlases, { minOpaqueRatio: 0.84, minEdgeOpaqueRatio: 0.82, maxCells: 120 });
+    const water = await loadAtlasGroup(waterAtlases, { minOpaqueRatio: 0.54, minEdgeOpaqueRatio: 0.3, maxCells: 80 });
 
     const decorAtlases = filterAtlasPaths(atlasUniverse, {
       include: ['interior_objects', 'objects'],
       exclude: ['with_shadow', 'idle_', 'walk_', 'run_', 'windows_doors'],
       limit: 2,
     });
-    const decor = await loadAtlasGroup(decorAtlases, { minOpaqueRatio: 0.72, maxCells: 40 });
+    const decor = await loadAtlasGroup(decorAtlases, { minOpaqueRatio: 0.72, minEdgeOpaqueRatio: 0.45, maxCells: 60 });
 
     state.pools = {
-      floors: floors.slice(0, 80),
-      walls: walls.slice(0, 60),
-      outdoor: outdoor.slice(0, 60),
-      water: water.slice(0, 40),
-      decor: decor.slice(0, 40),
+      floors: floors.slice(0, 120),
+      walls: walls.slice(0, 110),
+      outdoor: outdoor.slice(0, 120),
+      water: water.slice(0, 80),
+      decor: decor.slice(0, 60),
     };
 
     const propPaths = selectProps(catalog).slice(0, 30);
@@ -861,19 +1021,12 @@
 
     state.characterSheets = charSheets.filter(Boolean);
     state.roleSprites = await buildRoleSpriteCatalog(catalog);
-
-    // Load tile atlases from the guild hall asset pack
-    const allImages = collectCatalogImages(catalog);
-    const interiorAtlasPath = pickCatalogImageByBase(allImages, 'Walls_interior.png', {
-      preferPack: 'craftpix-net-189780-free-top-down-pixel-art-guild-hall-asset-pack',
-      preferPngFolder: true,
-    });
-    const streetAtlasPath = pickCatalogImageByBase(allImages, 'Walls_street.png', {
-      preferPack: 'craftpix-net-189780-free-top-down-pixel-art-guild-hall-asset-pack',
-      preferPngFolder: true,
-    });
-    try { if (interiorAtlasPath) state.tileAtlasInterior = await loadImage(interiorAtlasPath); } catch { }
-    try { if (streetAtlasPath) state.tileAtlasStreet = await loadImage(streetAtlasPath); } catch { }
+    buildThemeTiles();
+    const themedTileCount = Object.values(state.themeTiles)
+      .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+    if (themedTileCount < 12) {
+      pushEvent('tiles', `low themed tile coverage (${themedTileCount})`);
+    }
 
     // Re-assign roleSprites to any agents that were created before loading finished
     if (Object.keys(state.roleSprites).length > 0) {
@@ -891,9 +1044,12 @@
     state.loadedAssets =
       state.pools.floors.length
       + state.pools.walls.length
+      + state.pools.outdoor.length
+      + state.pools.water.length
       + state.props.length
       + state.characterSheets.length
-      + Object.keys(state.roleSprites).length;
+      + Object.keys(state.roleSprites).length
+      + themedTileCount;
   }
 
   function pickPropForGroup(group, props) {
@@ -1031,132 +1187,92 @@
     const r1 = tileRand(x, y, 0);
     const r2 = tileRand(x, y, 1);
     const r3 = tileRand(x, y, 2);
-    const interior = state.tileAtlasInterior;
-    const street = state.tileAtlasStreet;
 
-    switch (tileType) {
-      case TILE_VOID:
-        return;
-
-      case TILE_FLOOR_MAIN: {
-        // Use wooden floor cells from Walls_interior.png bottom-right area
-        if (interior) {
-          // Bottom-right has wooden floor tiles — row 5, cols 19-23 approx (16px grid)
-          const floorCol = checker ? 20 : 21;
-          ctx.drawImage(interior, floorCol * 16, 5 * 16, 16, 16, px, py, T, T);
-        } else {
-          ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
-          ctx.fillRect(px, py, T, T);
-          ctx.fillStyle = 'rgba(0,0,0,0.08)';
-          ctx.fillRect(px, py + 4, T, 1);
-          ctx.fillRect(px, py + 10, T, 1);
-        }
-        break;
-      }
-
-      case TILE_FLOOR_MEETING: {
-        // Use darker floor variant from interior atlas
-        if (interior) {
-          const floorCol = checker ? 22 : 23;
-          ctx.drawImage(interior, floorCol * 16, 5 * 16, 16, 16, px, py, T, T);
-        } else {
-          ctx.fillStyle = checker ? '#6e4928' : '#634022';
-          ctx.fillRect(px, py, T, T);
-          ctx.fillStyle = 'rgba(0,0,0,0.12)';
-          ctx.fillRect(px, py + 7, T, 1);
-        }
-        break;
-      }
-
-      case TILE_FLOOR_OPS: {
-        // Use stone tiles from interior atlas — the blue/grey stone sections
-        if (interior) {
-          const stoneCol = checker ? 4 : 5;
-          ctx.drawImage(interior, stoneCol * 16, 2 * 16, 16, 16, px, py, T, T);
-        } else {
-          ctx.fillStyle = checker ? '#8a8a98' : '#7e7e8c';
-          ctx.fillRect(px, py, T, T);
-          ctx.fillStyle = 'rgba(0,0,0,0.18)';
-          ctx.fillRect(px + T - 1, py, 1, T);
-          ctx.fillRect(px, py + T - 1, T, 1);
-        }
-        break;
-      }
-
-      case TILE_FLOOR_LOUNGE: {
-        // Use cobble/tile floor from interior atlas
-        if (interior) {
-          const loungeCol = checker ? 19 : 18;
-          ctx.drawImage(interior, loungeCol * 16, 4 * 16, 16, 16, px, py, T, T);
-        } else {
-          ctx.fillStyle = checker ? '#3b6080' : '#345874';
-          ctx.fillRect(px, py, T, T);
-        }
-        break;
-      }
-
-      case TILE_WALL: {
-        // Use wall tiles from interior atlas — blue/purple stone walls
-        if (interior) {
-          const wallCol = checker ? 6 : 7;
-          ctx.drawImage(interior, wallCol * 16, 0, 16, 16, px, py, T, T);
-        } else {
-          ctx.fillStyle = '#1c2236';
-          ctx.fillRect(px, py, T, T);
-          ctx.fillStyle = '#252d44';
-          ctx.fillRect(px + 1, py + 1, T - 2, 6);
-          ctx.fillRect(px + 1, py + 9, T - 2, 6);
-          ctx.fillStyle = '#161c2e';
-          ctx.fillRect(px, py + 7, T, 2);
-        }
-        break;
-      }
-
-      case TILE_OUTDOOR: {
-        // Use outdoor tiles from street atlas — grass and cobble paths
-        if (street) {
-          // Bottom area of Walls_street has grass/cobble cells
-          const grassCol = checker ? 0 : 1;
-          const grassRow = 8;
-          ctx.drawImage(street, grassCol * 16, grassRow * 16, 16, 16, px, py, T, T);
-        } else {
-          const baseG = checker ? 62 : 56;
-          const gVar = Math.floor(r1 * 12) - 6;
-          ctx.fillStyle = `rgb(${45 + gVar}, ${baseG + gVar}, ${38 + gVar})`;
-          ctx.fillRect(px, py, T, T);
-          if (r2 > 0.6) {
-            ctx.fillStyle = 'rgba(80,140,70,0.35)';
-            ctx.fillRect(px + Math.floor(r1 * 10) + 2, py + Math.floor(r3 * 8) + 3, 1, 3);
-          }
-        }
-        break;
-      }
-
-      case TILE_WATER: {
-        // Animated water — keep programmatic since no water atlas
-        const waveOff = Math.sin((x * 0.8 + y * 0.5) + performance.now() / 1200) * 0.12;
-        const baseBlue = checker ? 80 : 72;
-        ctx.fillStyle = `rgb(${35 + Math.floor(waveOff * 20)}, ${55 + Math.floor(waveOff * 15)}, ${baseBlue + Math.floor(waveOff * 25)})`;
-        ctx.fillRect(px, py, T, T);
-        const waveX = Math.floor(Math.sin((x * 1.3 + performance.now() / 800)) * 4 + 6);
-        ctx.fillStyle = 'rgba(120,180,220,0.2)';
-        ctx.fillRect(px + waveX, py + 4, 4, 1);
-        ctx.fillRect(px + (T - waveX - 2), py + 10, 3, 1);
-        ctx.fillStyle = 'rgba(0,10,30,0.1)';
-        ctx.fillRect(px, py + T - 3, T, 3);
-        break;
-      }
-
-      default: {
-        if (interior) {
-          ctx.drawImage(interior, 20 * 16, 5 * 16, 16, 16, px, py, T, T);
-        } else {
-          ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
-          ctx.fillRect(px, py, T, T);
-        }
-        break;
-      }
+    function drawFromPool(pool, seed = 0) {
+      const cell = pickTileVariant(pool, x, y, seed);
+      if (!cell) return false;
+      ctx.drawImage(cell.image, cell.sx, cell.sy, cell.sw, cell.sh, px, py, T, T);
+      return true;
     }
+
+    function drawFallbackFloor(colorA, colorB) {
+      ctx.fillStyle = checker ? colorA : colorB;
+      ctx.fillRect(px, py, T, T);
+    }
+
+    if (tileType === TILE_VOID) return;
+
+    if (tileType === TILE_FLOOR_MAIN) {
+      const pool = state.themeTiles.main.length ? state.themeTiles.main : state.pools.floors;
+      if (drawFromPool(pool, 10)) return;
+      drawFallbackFloor('#8a6036', '#7d5531');
+      return;
+    }
+
+    if (tileType === TILE_FLOOR_MEETING) {
+      const pool = state.themeTiles.meeting.length ? state.themeTiles.meeting : state.themeTiles.main;
+      if (drawFromPool(pool, 12)) return;
+      drawFallbackFloor('#6e4928', '#634022');
+      return;
+    }
+
+    if (tileType === TILE_FLOOR_OPS) {
+      const pool = state.themeTiles.ops.length ? state.themeTiles.ops : state.pools.floors;
+      if (drawFromPool(pool, 14)) return;
+      drawFallbackFloor('#8a8a98', '#7e7e8c');
+      return;
+    }
+
+    if (tileType === TILE_FLOOR_LOUNGE) {
+      const pool = state.themeTiles.lounge.length ? state.themeTiles.lounge : state.themeTiles.ops;
+      if (drawFromPool(pool, 16)) return;
+      drawFallbackFloor('#3b6080', '#345874');
+      return;
+    }
+
+    if (tileType === TILE_WALL) {
+      const pool = state.themeTiles.wall.length ? state.themeTiles.wall : state.pools.walls;
+      if (drawFromPool(pool, 18)) return;
+      drawFallbackFloor('#1c2236', '#252d44');
+      return;
+    }
+
+    if (tileType === TILE_OUTDOOR) {
+      const pool = state.themeTiles.outdoor.length ? state.themeTiles.outdoor : state.pools.outdoor;
+      if (drawFromPool(pool, 20)) {
+        if (r2 > 0.84) {
+          ctx.fillStyle = 'rgba(255,255,255,0.03)';
+          ctx.fillRect(px + Math.floor(r1 * 8) + 2, py + Math.floor(r3 * 8) + 2, 2, 2);
+        }
+        return;
+      }
+      const baseG = checker ? 62 : 56;
+      const gVar = Math.floor(r1 * 12) - 6;
+      ctx.fillStyle = 'rgb(' + (45 + gVar) + ', ' + (baseG + gVar) + ', ' + (38 + gVar) + ')';
+      ctx.fillRect(px, py, T, T);
+      return;
+    }
+
+    if (tileType === TILE_WATER) {
+      const pool = state.themeTiles.water.length ? state.themeTiles.water : state.pools.water;
+      if (drawFromPool(pool, 22)) {
+        const wave = Math.sin((x * 0.85 + y * 0.6) + performance.now() / 900) * 0.5 + 0.5;
+        ctx.fillStyle = 'rgba(92, 160, 220, ' + (0.08 + (wave * 0.08)) + ')';
+        ctx.fillRect(px + 1, py + 1, T - 2, 2);
+        ctx.fillStyle = 'rgba(15, 30, 55, ' + (0.08 + ((1 - wave) * 0.08)) + ')';
+        ctx.fillRect(px, py + T - 3, T, 3);
+        return;
+      }
+      const waveOff = Math.sin((x * 0.8 + y * 0.5) + performance.now() / 1200) * 0.12;
+      const baseBlue = checker ? 80 : 72;
+      ctx.fillStyle = 'rgb(' + (35 + Math.floor(waveOff * 20)) + ', ' + (55 + Math.floor(waveOff * 15)) + ', ' + (baseBlue + Math.floor(waveOff * 25)) + ')';
+      ctx.fillRect(px, py, T, T);
+      return;
+    }
+
+    const defaultPool = state.themeTiles.main.length ? state.themeTiles.main : state.pools.floors;
+    if (drawFromPool(defaultPool, 24)) return;
+    drawFallbackFloor('#8a6036', '#7d5531');
   }
 
   function drawWorld() {

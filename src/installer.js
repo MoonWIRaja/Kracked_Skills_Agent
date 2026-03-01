@@ -71,7 +71,6 @@ const PANEL_REMOTE_BASES = [
 ];
 const PANEL_UPSTREAM_WEBVIEW_BASE = 'https://raw.githubusercontent.com/pablodelucca/pixel-agents/main/webview-ui/public';
 const PANEL_MIN_VERSION = '0.3.2';
-const PANEL_MIN_LAYOUT_BYTES = 36000;
 
 function normalizeToolName(tool) {
   const value = String(tool || '').trim().toLowerCase();
@@ -143,6 +142,8 @@ function readPanelBundleInfo(panelDir) {
     version: '0.0.0',
     extensionBytes: 0,
     layoutBytes: 0,
+    layoutValid: false,
+    layoutFurnitureCount: 0,
     hasLayoutV3: false,
     fresh: false,
   };
@@ -169,11 +170,29 @@ function readPanelBundleInfo(panelDir) {
   const layoutPath = path.join(panelDir, 'dist', 'webview', 'assets', 'default-layout.json');
   if (fs.existsSync(layoutPath)) {
     info.layoutBytes = fs.statSync(layoutPath).size;
+    try {
+      const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
+      const cols = Number(layout && layout.cols);
+      const rows = Number(layout && layout.rows);
+      const tiles = Array.isArray(layout && layout.tiles) ? layout.tiles : [];
+      const furniture = Array.isArray(layout && layout.furniture) ? layout.furniture : [];
+      info.layoutFurnitureCount = furniture.length;
+      info.layoutValid = Number(layout && layout.version) === 1
+        && Number.isInteger(cols)
+        && Number.isInteger(rows)
+        && cols > 0
+        && rows > 0
+        && tiles.length === cols * rows
+        && furniture.length >= 20;
+    } catch {
+      info.layoutValid = false;
+      info.layoutFurnitureCount = 0;
+    }
   }
 
   info.fresh = compareSemver(info.version, PANEL_MIN_VERSION) >= 0
     && info.hasLayoutV3
-    && info.layoutBytes >= PANEL_MIN_LAYOUT_BYTES;
+    && info.layoutValid;
 
   return info;
 }
@@ -939,7 +958,7 @@ async function install(args) {
     let panelInfo = readPanelBundleInfo(panelDest);
     if (!panelInfo.fresh) {
       showWarning(
-        `Native panel bundle looks stale (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes). Attempting remote sync...`
+        `Native panel bundle looks stale (version=${panelInfo.version}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount}). Attempting remote sync...`
       );
       let synced = false;
       for (const base of PANEL_REMOTE_BASES) {
@@ -953,7 +972,7 @@ async function install(args) {
             break;
           }
           showWarning(
-            `Remote sync from ${base} still stale (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes)`
+            `Remote sync from ${base} still stale (version=${panelInfo.version}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
           );
         } catch (err) {
           showWarning(`Remote panel sync failed (${base}): ${err && err.message ? err.message : String(err)}`);
@@ -972,7 +991,7 @@ async function install(args) {
             synced = true;
           } else {
             showWarning(
-              `Upstream fallback completed but bundle still not fresh (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes)`
+              `Upstream fallback completed but bundle still not fresh (version=${panelInfo.version}, layoutBytes=${panelInfo.layoutBytes}, furniture=${panelInfo.layoutFurnitureCount})`
             );
           }
         } catch (err) {

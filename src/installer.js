@@ -65,7 +65,11 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_REMOTE_BASE = 'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/main/ide/vscode-kd-pixel-panel';
+const PANEL_REMOTE_BASES = [
+  'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/main/ide/vscode-kd-pixel-panel',
+  'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/master/ide/vscode-kd-pixel-panel',
+];
+const PANEL_UPSTREAM_WEBVIEW_BASE = 'https://raw.githubusercontent.com/pablodelucca/pixel-agents/main/webview-ui/public';
 const PANEL_MIN_VERSION = '0.3.2';
 const PANEL_MIN_LAYOUT_BYTES = 36000;
 
@@ -225,7 +229,7 @@ function parseAssetRefsFromIndexHtml(indexHtml) {
   return [...refs];
 }
 
-async function syncPanelBundleFromRemote(panelDest) {
+async function syncPanelBundleFromRemoteBase(remoteBase, panelDest) {
   const tmpDir = `${panelDest}.__remote_sync`;
   removeDirRecursive(tmpDir);
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -250,7 +254,7 @@ async function syncPanelBundleFromRemote(panelDest) {
     'dist/webview/assets/characters/char_5.png',
   ];
 
-  const indexUrl = `${PANEL_REMOTE_BASE}/dist/webview/index.html`;
+  const indexUrl = `${remoteBase}/dist/webview/index.html`;
   const indexBuffer = await downloadUrlBuffer(indexUrl);
   const indexHtml = indexBuffer.toString('utf8');
   const dynamicAssetFiles = parseAssetRefsFromIndexHtml(indexHtml);
@@ -258,7 +262,7 @@ async function syncPanelBundleFromRemote(panelDest) {
   const files = [...new Set([...staticFiles, ...dynamicAssetFiles])];
 
   for (const rel of files) {
-    const url = `${PANEL_REMOTE_BASE}/${rel}`;
+    const url = `${remoteBase}/${rel}`;
     const data = rel === 'dist/webview/index.html' ? indexBuffer : await downloadUrlBuffer(url);
     const dest = path.join(tmpDir, ...rel.split('/'));
     ensureDirRecursive(path.dirname(dest));
@@ -267,7 +271,47 @@ async function syncPanelBundleFromRemote(panelDest) {
 
   removeDirRecursive(panelDest);
   fs.renameSync(tmpDir, panelDest);
-  return { ok: true, files: files.length };
+  return { ok: true, files: files.length, source: remoteBase };
+}
+
+async function syncPanelAssetsFromUpstream(panelDest) {
+  const upstreamFiles = [
+    ['characters.png', 'dist/webview/characters.png'],
+    ['assets/default-layout.json', 'dist/webview/assets/default-layout.json'],
+    ['assets/walls.png', 'dist/webview/assets/walls.png'],
+    ['assets/characters/char_0.png', 'dist/webview/assets/characters/char_0.png'],
+    ['assets/characters/char_1.png', 'dist/webview/assets/characters/char_1.png'],
+    ['assets/characters/char_2.png', 'dist/webview/assets/characters/char_2.png'],
+    ['assets/characters/char_3.png', 'dist/webview/assets/characters/char_3.png'],
+    ['assets/characters/char_4.png', 'dist/webview/assets/characters/char_4.png'],
+    ['assets/characters/char_5.png', 'dist/webview/assets/characters/char_5.png'],
+  ];
+
+  for (const [upstreamRel, localRel] of upstreamFiles) {
+    const url = `${PANEL_UPSTREAM_WEBVIEW_BASE}/${upstreamRel}`;
+    const data = await downloadUrlBuffer(url);
+    const dest = path.join(panelDest, ...localRel.split('/'));
+    ensureDirRecursive(path.dirname(dest));
+    fs.writeFileSync(dest, data);
+  }
+
+  return { ok: true, files: upstreamFiles.length, source: PANEL_UPSTREAM_WEBVIEW_BASE };
+}
+
+function applyPanelHotfixes(panelDest) {
+  const extensionPath = path.join(panelDest, 'extension.js');
+  if (!fs.existsSync(extensionPath)) return { changed: false };
+
+  const content = fs.readFileSync(extensionPath, 'utf8');
+  if (content.includes("kdPixel.officeLayout.v3")) return { changed: false };
+
+  const updated = content.replace(/kdPixel\.officeLayout\.v2/g, 'kdPixel.officeLayout.v3');
+  if (updated !== content) {
+    fs.writeFileSync(extensionPath, updated, 'utf8');
+    return { changed: true };
+  }
+
+  return { changed: false };
 }
 
 function writePanelHelperScripts(targetDir) {
@@ -888,24 +932,58 @@ async function install(args) {
   if (fs.existsSync(panelSrc)) {
     removeDirRecursive(panelDest);
     copyDirRecursive(panelSrc, panelDest);
+    const hotfixResult = applyPanelHotfixes(panelDest);
+    if (hotfixResult.changed) {
+      showInfo('Applied panel layout-state hotfix (v3)');
+    }
     let panelInfo = readPanelBundleInfo(panelDest);
     if (!panelInfo.fresh) {
       showWarning(
         `Native panel bundle looks stale (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes). Attempting remote sync...`
       );
-      try {
-        const syncResult = await syncPanelBundleFromRemote(panelDest);
-        panelInfo = readPanelBundleInfo(panelDest);
-        if (panelInfo.fresh) {
-          showSuccess(`Native panel synced from GitHub (${syncResult.files} files, version=${panelInfo.version})`);
-        } else {
+      let synced = false;
+      for (const base of PANEL_REMOTE_BASES) {
+        try {
+          const syncResult = await syncPanelBundleFromRemoteBase(base, panelDest);
+          applyPanelHotfixes(panelDest);
+          panelInfo = readPanelBundleInfo(panelDest);
+          if (panelInfo.fresh) {
+            showSuccess(`Native panel synced from ${base} (${syncResult.files} files, version=${panelInfo.version})`);
+            synced = true;
+            break;
+          }
           showWarning(
-            `Remote sync completed but bundle still not fresh (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes)`
+            `Remote sync from ${base} still stale (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes)`
           );
+        } catch (err) {
+          showWarning(`Remote panel sync failed (${base}): ${err && err.message ? err.message : String(err)}`);
         }
-      } catch (err) {
-        showWarning(`Remote panel sync failed: ${err && err.message ? err.message : String(err)}`);
-        showInfo('If this persists, run install with explicit ref: npx github:MoonWIRaja/Kracked_Skills_Agent#main install');
+      }
+
+      if (!synced) {
+        try {
+          const upstreamResult = await syncPanelAssetsFromUpstream(panelDest);
+          applyPanelHotfixes(panelDest);
+          panelInfo = readPanelBundleInfo(panelDest);
+          if (panelInfo.fresh) {
+            showSuccess(
+              `Native panel recovered from upstream assets (${upstreamResult.files} files, version=${panelInfo.version})`
+            );
+            synced = true;
+          } else {
+            showWarning(
+              `Upstream fallback completed but bundle still not fresh (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes)`
+            );
+          }
+        } catch (err) {
+          showWarning(`Upstream fallback sync failed: ${err && err.message ? err.message : String(err)}`);
+        }
+      }
+
+      if (!synced) {
+        showInfo(
+          'If this persists, use explicit ref and clear npm cache: npx github:MoonWIRaja/Kracked_Skills_Agent#main install'
+        );
       }
     } else {
       showSuccess(`Native panel bundle ready (version=${panelInfo.version})`);

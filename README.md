@@ -32,7 +32,10 @@ Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
 npx github:MoonWIRaja/Kracked_Skills_Agent install
 ```
 
-If your local `npx` cache is stale, installer now auto-validates the native panel bundle and tries to self-sync from GitHub `main`.
+If your local `npx` cache is stale, installer auto-validates the native panel bundle and tries self-sync in this order:
+1. GitHub repo `main`
+2. GitHub repo `master`
+3. upstream pixel-agents webview assets fallback
 
 ### Install (Non-Interactive)
 

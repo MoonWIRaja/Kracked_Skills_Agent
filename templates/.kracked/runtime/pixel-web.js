@@ -64,6 +64,35 @@ function toPort(value, fallback) {
   return Number.isFinite(n) && n > 0 && n <= 65535 ? n : fallback;
 }
 
+function toBool(value, fallback = false) {
+  if (value == null) return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return fallback;
+}
+
+function openUrl(url) {
+  try {
+    const target = String(url || '').trim();
+    if (!target) return;
+    if (process.platform === 'win32') {
+      childProcess.spawn('cmd', ['/c', 'start', '', target], {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
+      return;
+    }
+    if (process.platform === 'darwin') {
+      childProcess.spawn('open', [target], { detached: true, stdio: 'ignore' }).unref();
+      return;
+    }
+    childProcess.spawn('xdg-open', [target], { detached: true, stdio: 'ignore' }).unref();
+  } catch {
+    // Ignore browser-open failures.
+  }
+}
+
 function eventTime(event) {
   const n = new Date(event && event.ts ? event.ts : 0).getTime();
   return Number.isFinite(n) ? n : 0;
@@ -381,7 +410,8 @@ async function main() {
   childProcess = await import('node:child_process');
 
   const args = parseArgs(process.argv.slice(2));
-  const port = toPort(args.port, 4892);
+  const requestedPort = toPort(args.port, 4892);
+  const autoOpen = toBool(args.open, false);
 
   const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
   const scriptDir = path.dirname(process.argv[1] || process.cwd());
@@ -453,9 +483,30 @@ async function main() {
     }
   });
 
-  server.listen(port, () => {
-    process.stdout.write(`[KD] KD RPG WORLD web observer running at http://localhost:${port}\n`);
+  let activePort = requestedPort;
+  let retries = 0;
+  const maxRetries = 20;
+
+  server.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE' && retries < maxRetries && activePort < 65535) {
+      const nextPort = activePort + 1;
+      retries += 1;
+      process.stdout.write(`[KD][warn] Port ${activePort} already in use. Retrying on ${nextPort}...\n`);
+      activePort = nextPort;
+      setTimeout(() => {
+        server.listen(activePort);
+      }, 80);
+      return;
+    }
+    process.stderr.write(`[KD] pixel-web error: ${err && err.message ? err.message : String(err)}\n`);
+    process.exit(1);
+  });
+
+  server.listen(activePort, () => {
+    const url = `http://localhost:${activePort}`;
+    process.stdout.write(`[KD] KD RPG WORLD web observer running at ${url}\n`);
     process.stdout.write('[KD] Press Ctrl+C to stop.\n');
+    if (autoOpen) openUrl(url);
   });
 }
 

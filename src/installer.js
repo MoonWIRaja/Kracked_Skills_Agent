@@ -310,8 +310,7 @@ if not exist "%WEB_FILE%" (
 )
 set PORT=4892
 if not "%1"=="" set PORT=%1
-start "" http://localhost:%PORT%
-node "%WEB_FILE%" --port %PORT%
+node "%WEB_FILE%" --port %PORT% --open true
 `;
 
   const webPs1 = `param(
@@ -322,8 +321,7 @@ $webFile = Join-Path $PSScriptRoot ".kracked/runtime/pixel-web.js"
 if (-not (Test-Path $webFile)) {
   Write-Error "[KD] Web panel script not found: $webFile"
 }
-Start-Process "http://localhost:$Port" | Out-Null
-node $webFile --port $Port
+node $webFile --port $Port --open true
 `;
 
   fs.writeFileSync(path.join(targetDir, 'kd-panel-install.bat'), batContent, 'utf8');
@@ -679,6 +677,7 @@ function fail(msg){process.stderr.write('[KD] '+msg+'\\n');process.exit(1);}
   const fs = await import('node:fs');
   const path = await import('node:path');
   const http = await import('node:http');
+  const childProcess = await import('node:child_process');
   const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
   const scriptDir = path.dirname(process.argv[1] || process.cwd());
   const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
@@ -687,8 +686,11 @@ function fail(msg){process.stderr.write('[KD] '+msg+'\\n');process.exit(1);}
   if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
   const args = process.argv.slice(2);
   const portIndex = args.indexOf('--port');
-  const port = Number.parseInt(portIndex >= 0 ? args[portIndex + 1] : '', 10) || 4892;
-  http.createServer((req, res) => {
+  const openIndex = args.indexOf('--open');
+  const openArg = openIndex >= 0 ? String(args[openIndex + 1] || 'true').toLowerCase() : 'false';
+  const autoOpen = ['1','true','yes','y','on'].includes(openArg);
+  let port = Number.parseInt(portIndex >= 0 ? args[portIndex + 1] : '', 10) || 4892;
+  const server = http.createServer((req, res) => {
     if ((req.url || '/') === '/api/state') {
       const lines = fs.readFileSync(eventsPath, 'utf8').split(/\\r?\\n/).filter(Boolean).slice(-60);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -697,8 +699,31 @@ function fail(msg){process.stderr.write('[KD] '+msg+'\\n');process.exit(1);}
     }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end('<h1>KD Pixel Web Fallback</h1><p>Open <code>/api/state</code> for data.</p>');
-  }).listen(port, () => {
-    process.stdout.write('[KD] Pixel web fallback running on http://localhost:' + port + '\\n');
+  });
+  let retries = 0;
+  const maxRetries = 20;
+  server.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE' && retries < maxRetries && port < 65535) {
+      const next = port + 1;
+      retries += 1;
+      process.stdout.write('[KD][warn] Port ' + port + ' already in use. Retrying on ' + next + '...\\n');
+      port = next;
+      setTimeout(() => server.listen(port), 80);
+      return;
+    }
+    console.error('[KD] pixel-web fallback error: ' + (err && err.message ? err.message : String(err)));
+    process.exit(1);
+  });
+  server.listen(port, () => {
+    const url = 'http://localhost:' + port;
+    process.stdout.write('[KD] Pixel web fallback running on ' + url + '\\n');
+    if (autoOpen) {
+      try {
+        if (process.platform === 'win32') {
+          childProcess.spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
+        }
+      } catch {}
+    }
   });
 })().catch((err)=>{ console.error('[KD] pixel-web fallback error: '+(err&&err.message?err.message:String(err))); process.exit(1); });
 `;

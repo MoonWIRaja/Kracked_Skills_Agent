@@ -85,6 +85,70 @@ body {
   z-index: 10;
 }
 
+.kd-layout-panel {
+  position: absolute;
+  left: 8px;
+  bottom: 42px;
+  min-width: 340px;
+  max-width: 420px;
+  border: 1px solid rgba(96, 128, 182, 0.85);
+  background: rgba(8, 14, 27, 0.9);
+  padding: 8px;
+  z-index: 10;
+}
+
+.kd-layout-modes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.kd-layout-pickers {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  gap: 4px;
+}
+
+.kd-layout-btn {
+  height: 28px;
+  border: 1px solid #5f7fb6;
+  background: rgba(26, 40, 72, 0.9);
+  color: #d8e7ff;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.kd-layout-btn:hover {
+  border-color: #9fb5e3;
+}
+
+.kd-layout-btn.is-active {
+  border-color: #87f6b6;
+  color: #d6ffe8;
+  background: rgba(24, 58, 47, 0.92);
+}
+
+.kd-layout-danger.is-active {
+  border-color: #ff8f8f;
+  color: #ffe4e4;
+  background: rgba(75, 24, 24, 0.92);
+}
+
+.kd-layout-select {
+  height: 28px;
+  border: 1px solid #5f7fb6;
+  background: rgba(17, 28, 49, 0.95);
+  color: #d8e7ff;
+  font-size: 11px;
+}
+
+.kd-layout-hint {
+  margin: 6px 2px 0;
+  font-size: 11px;
+  color: #b7c9ec;
+}
+
 .kd-side {
   border: 1px solid var(--line);
   background: rgba(8, 14, 28, 0.94);

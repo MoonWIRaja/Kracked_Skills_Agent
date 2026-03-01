@@ -14,7 +14,29 @@
           <button id="zoomIn" class="kd-btn">+</button>
           <button id="zoomOut" class="kd-btn">-</button>
         </div>
-        <div class="kd-badge">KD RPG WORLD • Asset Pack Runtime</div>
+        <div id="kdLayoutPanel" class="kd-layout-panel">
+          <div class="kd-layout-modes">
+            <button class="kd-layout-btn is-active" data-layout-mode="floor">Floor</button>
+            <button class="kd-layout-btn" data-layout-mode="wall">Wall</button>
+            <button class="kd-layout-btn" data-layout-mode="furniture">Furniture</button>
+            <button class="kd-layout-btn kd-layout-danger" data-layout-mode="eraser">Eraser</button>
+          </div>
+          <div class="kd-layout-pickers">
+            <select id="kdFurnitureCategory" class="kd-layout-select">
+              <option value="all">all</option>
+              <option value="desk">desk</option>
+              <option value="chair">chair</option>
+              <option value="storage">storage</option>
+              <option value="tech">tech</option>
+              <option value="decor">decor</option>
+              <option value="nature">nature</option>
+            </select>
+            <select id="kdFurnitureSelect" class="kd-layout-select"></select>
+            <button id="kdLayoutReset" class="kd-layout-btn">Reset</button>
+          </div>
+          <p id="kdLayoutHint" class="kd-layout-hint">Mode: Floor. Drag on map to paint.</p>
+        </div>
+        <div class="kd-badge">KD RPG WORLD - Asset Pack Runtime</div>
       </section>
       <aside class="kd-side">
         <div class="kd-box">

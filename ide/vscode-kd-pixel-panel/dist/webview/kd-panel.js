@@ -36,6 +36,12 @@
   const updatedEl = document.getElementById('kdUpdated');
   const agentListEl = document.getElementById('kdAgentList');
   const eventListEl = document.getElementById('kdEventList');
+  const layoutPanelEl = document.getElementById('kdLayoutPanel');
+  const layoutModeButtons = [...document.querySelectorAll('[data-layout-mode]')];
+  const furnitureCategoryEl = document.getElementById('kdFurnitureCategory');
+  const furnitureSelectEl = document.getElementById('kdFurnitureSelect');
+  const layoutResetEl = document.getElementById('kdLayoutReset');
+  const layoutHintEl = document.getElementById('kdLayoutHint');
 
   const TILE = 16;
   const WORLD_COLS = 52;
@@ -49,12 +55,15 @@
   const TILE_WALL = 5;
   const TILE_OUTDOOR = 6;
   const TILE_WATER = 7;
+  const LAYOUT_STORAGE_KEY = 'kdPixel.customLayout.v1';
 
   const WORLD = {
     cols: WORLD_COLS,
     rows: WORLD_ROWS,
     tiles: new Array(WORLD_COLS * WORLD_ROWS).fill(TILE_VOID),
+    baseTiles: new Array(WORLD_COLS * WORLD_ROWS).fill(TILE_VOID),
     propSlots: [],
+    userFurniture: [],
   };
 
   const state = {
@@ -68,6 +77,16 @@
       decor: [],
     },
     props: [],
+    propsByPath: new Map(),
+    furnitureByCategory: {
+      all: [],
+      desk: [],
+      chair: [],
+      storage: [],
+      tech: [],
+      decor: [],
+      nature: [],
+    },
     characterSheets: [],
     roleSprites: {},
     themeTiles: {
@@ -85,6 +104,13 @@
     loadedAssets: 0,
     lastUpdate: null,
     ready: false,
+    editor: {
+      mode: 'floor',
+      furnitureCategory: 'all',
+      selectedFurniturePath: null,
+      painting: false,
+      saveTimer: null,
+    },
   };
 
   const CHARACTER_DEFS = {
@@ -198,6 +224,30 @@
     const rect = canvas.parentElement.getBoundingClientRect();
     canvas.width = Math.max(720, Math.floor(rect.width));
     canvas.height = Math.max(440, Math.floor(rect.height));
+  }
+
+  function getWorldTransform() {
+    const worldWidth = WORLD.cols * TILE * state.zoom;
+    const worldHeight = WORLD.rows * TILE * state.zoom;
+    const offsetX = Math.floor((canvas.width - worldWidth) / 2);
+    const offsetY = Math.floor((canvas.height - worldHeight) / 2);
+    return { worldWidth, worldHeight, offsetX, offsetY };
+  }
+
+  function screenToTile(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    const { offsetX, offsetY, worldWidth, worldHeight } = getWorldTransform();
+    if (px < offsetX || py < offsetY || px >= (offsetX + worldWidth) || py >= (offsetY + worldHeight)) {
+      return null;
+    }
+    const worldX = (px - offsetX) / state.zoom;
+    const worldY = (py - offsetY) / state.zoom;
+    const tx = Math.floor(worldX / TILE);
+    const ty = Math.floor(worldY / TILE);
+    if (tx < 0 || ty < 0 || tx >= WORLD.cols || ty >= WORLD.rows) return null;
+    return { x: tx, y: ty };
   }
 
   function mapIndex(x, y) {
@@ -317,6 +367,8 @@
     ];
 
     WORLD.propSlots = slots;
+    WORLD.baseTiles = WORLD.tiles.slice();
+    WORLD.userFurniture = [];
   }
 
   function roleLane(roleRaw) {
@@ -830,6 +882,215 @@
     ]);
   }
 
+  function furnitureCategoryForPath(relPath) {
+    const lower = String(relPath || '').toLowerCase();
+    if (/(desk|table|workbench|counter)/i.test(lower)) return 'desk';
+    if (/(chair|sofa|couch|stool|bench)/i.test(lower)) return 'chair';
+    if (/(book|shelf|cabinet|drawer|closet|cupboard|crate|barrel|locker)/i.test(lower)) return 'storage';
+    if (/(monitor|computer|server|terminal|console|vending|machine|clock|tv|radio)/i.test(lower)) return 'tech';
+    if (/(tree|grass|plant|bush|rock|mushroom|fern|flower|water|coast)/i.test(lower)) return 'nature';
+    return 'decor';
+  }
+
+  function rebuildFurnitureCategories() {
+    const grouped = {
+      all: [],
+      desk: [],
+      chair: [],
+      storage: [],
+      tech: [],
+      decor: [],
+      nature: [],
+    };
+
+    for (const item of state.props) {
+      if (!item || !item.relPath) continue;
+      const pathKey = normalizeRelPath(item.relPath);
+      grouped.all.push(pathKey);
+      const category = furnitureCategoryForPath(pathKey);
+      if (grouped[category]) grouped[category].push(pathKey);
+    }
+
+    for (const [key, list] of Object.entries(grouped)) {
+      grouped[key] = dedupePaths(list);
+    }
+
+    state.furnitureByCategory = grouped;
+    if (!state.editor.selectedFurniturePath && grouped.all.length > 0) {
+      state.editor.selectedFurniturePath = grouped.all[0];
+    }
+  }
+
+  function updateLayoutHint() {
+    if (!layoutHintEl) return;
+    const mode = state.editor.mode;
+    if (mode === 'furniture') {
+      const selected = state.editor.selectedFurniturePath
+        ? state.editor.selectedFurniturePath.split('/').pop()
+        : 'none';
+      layoutHintEl.textContent = `Mode: Furniture (${selected}). Drag to place.`;
+      return;
+    }
+    if (mode === 'eraser') {
+      layoutHintEl.textContent = 'Mode: Eraser. Drag to restore default tile and remove furniture.';
+      return;
+    }
+    if (mode === 'wall') {
+      layoutHintEl.textContent = 'Mode: Wall. Drag to paint walls.';
+      return;
+    }
+    layoutHintEl.textContent = 'Mode: Floor. Drag to paint floor.';
+  }
+
+  function refreshFurnitureSelectors() {
+    if (!furnitureCategoryEl || !furnitureSelectEl) return;
+    const category = state.editor.furnitureCategory || 'all';
+    const choices = state.furnitureByCategory[category] && state.furnitureByCategory[category].length
+      ? state.furnitureByCategory[category]
+      : state.furnitureByCategory.all;
+
+    furnitureCategoryEl.value = category;
+    furnitureSelectEl.innerHTML = '';
+    for (const relPath of choices) {
+      const option = document.createElement('option');
+      option.value = relPath;
+      option.textContent = relPath.split('/').pop();
+      furnitureSelectEl.appendChild(option);
+    }
+
+    if (choices.length > 0) {
+      const keep = choices.includes(state.editor.selectedFurniturePath)
+        ? state.editor.selectedFurniturePath
+        : choices[0];
+      state.editor.selectedFurniturePath = keep;
+      furnitureSelectEl.value = keep;
+    } else {
+      state.editor.selectedFurniturePath = null;
+    }
+
+    const showFurnitureControls = state.editor.mode === 'furniture';
+    furnitureCategoryEl.style.display = showFurnitureControls ? '' : 'none';
+    furnitureSelectEl.style.display = showFurnitureControls ? '' : 'none';
+    updateLayoutHint();
+  }
+
+  function setEditorMode(mode) {
+    const normalized = String(mode || 'floor').toLowerCase();
+    state.editor.mode = ['floor', 'wall', 'furniture', 'eraser'].includes(normalized)
+      ? normalized
+      : 'floor';
+
+    for (const button of layoutModeButtons) {
+      const isActive = button.dataset.layoutMode === state.editor.mode;
+      button.classList.toggle('is-active', isActive);
+    }
+    refreshFurnitureSelectors();
+  }
+
+  function serializeCustomLayout() {
+    return {
+      version: 1,
+      cols: WORLD.cols,
+      rows: WORLD.rows,
+      tiles: WORLD.tiles.slice(),
+      furniture: WORLD.userFurniture.map((entry) => ({
+        x: entry.x,
+        y: entry.y,
+        relPath: normalizeRelPath(entry.relPath),
+      })),
+    };
+  }
+
+  function saveCustomLayoutNow() {
+    const payload = serializeCustomLayout();
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore storage errors
+    }
+    if (vscode) {
+      vscode.postMessage({ type: 'saveLayout', layout: payload });
+    }
+  }
+
+  function scheduleCustomLayoutSave() {
+    if (state.editor.saveTimer) {
+      clearTimeout(state.editor.saveTimer);
+    }
+    state.editor.saveTimer = setTimeout(() => {
+      saveCustomLayoutNow();
+      state.editor.saveTimer = null;
+    }, 180);
+  }
+
+  function clearFurnitureAt(x, y) {
+    WORLD.userFurniture = WORLD.userFurniture.filter((entry) => !(entry.x === x && entry.y === y));
+    for (const slot of WORLD.propSlots) {
+      if (slot.x === x && slot.y === y) {
+        delete slot.override;
+      }
+    }
+  }
+
+  function applyCustomLayoutRecord(record) {
+    if (!record || typeof record !== 'object') return false;
+
+    const expectedTileCount = WORLD.cols * WORLD.rows;
+    if (Array.isArray(record.tiles) && record.tiles.length === expectedTileCount) {
+      WORLD.tiles = record.tiles.map((tile) => {
+        const n = Number(tile);
+        if (!Number.isFinite(n)) return TILE_OUTDOOR;
+        return clamp(Math.round(n), TILE_VOID, TILE_WATER);
+      });
+    }
+
+    WORLD.userFurniture = [];
+    const list = Array.isArray(record.furniture) ? record.furniture : [];
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const tx = Number(item.x);
+      const ty = Number(item.y);
+      if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
+      const x = Math.floor(tx);
+      const y = Math.floor(ty);
+      if (x < 0 || y < 0 || x >= WORLD.cols || y >= WORLD.rows) continue;
+      const relPath = normalizeRelPath(item.relPath);
+      if (!relPath) continue;
+      const sprite = state.propsByPath.get(relPath);
+      if (!sprite) continue;
+      WORLD.userFurniture.push({ x, y, relPath, sprite });
+    }
+    return true;
+  }
+
+  function restoreCustomLayout(payload) {
+    if (applyCustomLayoutRecord(payload)) {
+      pushEvent('layout', 'restored from panel state');
+      return true;
+    }
+
+    try {
+      const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      if (applyCustomLayoutRecord(parsed)) {
+        pushEvent('layout', 'restored from local storage');
+        return true;
+      }
+    } catch {
+      // ignore parse/storage failures
+    }
+    return false;
+  }
+
+  function resetToDefaultLayout() {
+    WORLD.tiles = WORLD.baseTiles.slice();
+    WORLD.userFurniture = [];
+    assignPropsToWorld();
+    scheduleCustomLayoutSave();
+    pushEvent('layout', 'reset to default');
+  }
+
   function prioritizeByKeywords(paths, keywords) {
     const lowerKeywords = keywords.map((k) => k.toLowerCase());
     return [...paths].sort((a, b) => {
@@ -995,6 +1256,8 @@
     );
 
     state.props = propImages.filter(Boolean);
+    state.propsByPath = new Map(state.props.map((item) => [normalizeRelPath(item.relPath), item]));
+    rebuildFurnitureCategories();
 
     const charPaths = prioritizeByKeywords(catalog.characterSheets || [], [
       'unarmed_idle_with_shadow',
@@ -1075,6 +1338,10 @@
   function assignPropsToWorld() {
     if (!Array.isArray(WORLD.propSlots)) return;
     for (const slot of WORLD.propSlots) {
+      if (slot.override) {
+        slot.sprite = slot.override;
+        continue;
+      }
       const sprite = pickPropForGroup(slot.group, state.props);
       if (!sprite) continue;
       slot.sprite = sprite;
@@ -1170,6 +1437,60 @@
         agent.y += (dy / dist) * step;
       }
     }
+  }
+
+  function applyEditorAtTile(tileX, tileY, modeOverride = null) {
+    if (!state.ready) return;
+    if (tileX < 0 || tileY < 0 || tileX >= WORLD.cols || tileY >= WORLD.rows) return;
+
+    const mode = modeOverride || state.editor.mode;
+    if (mode === 'floor') {
+      setTile(tileX, tileY, TILE_FLOOR_MAIN);
+      clearFurnitureAt(tileX, tileY);
+      scheduleCustomLayoutSave();
+      return;
+    }
+    if (mode === 'wall') {
+      setTile(tileX, tileY, TILE_WALL);
+      clearFurnitureAt(tileX, tileY);
+      scheduleCustomLayoutSave();
+      return;
+    }
+    if (mode === 'eraser') {
+      const idx = mapIndex(tileX, tileY);
+      WORLD.tiles[idx] = WORLD.baseTiles[idx];
+      clearFurnitureAt(tileX, tileY);
+      scheduleCustomLayoutSave();
+      return;
+    }
+    if (mode === 'furniture') {
+      const relPath = normalizeRelPath(state.editor.selectedFurniturePath);
+      if (!relPath) return;
+      const sprite = state.propsByPath.get(relPath);
+      if (!sprite) return;
+
+      let placedInSlot = false;
+      for (const slot of WORLD.propSlots) {
+        if (slot.x === tileX && slot.y === tileY) {
+          slot.override = sprite;
+          slot.sprite = sprite;
+          placedInSlot = true;
+          break;
+        }
+      }
+      if (!placedInSlot) {
+        WORLD.userFurniture = WORLD.userFurniture.filter((entry) => !(entry.x === tileX && entry.y === tileY));
+        WORLD.userFurniture.push({ x: tileX, y: tileY, relPath, sprite });
+      }
+      scheduleCustomLayoutSave();
+    }
+  }
+
+  function onCanvasPointer(event) {
+    const tile = screenToTile(event.clientX, event.clientY);
+    if (!tile) return;
+    const mode = event.button === 2 ? 'eraser' : state.editor.mode;
+    applyEditorAtTile(tile.x, tile.y, mode);
   }
 
   // Seeded random for deterministic per-tile variation
@@ -1329,6 +1650,19 @@
       ctx.drawImage(image, 0, 0, iw, ih, px, py, targetW, targetH);
     }
 
+    for (const item of WORLD.userFurniture) {
+      if (!item || !item.sprite || !item.sprite.image) continue;
+
+      const image = item.sprite.image;
+      const iw = item.sprite.w;
+      const ih = item.sprite.h;
+      const targetH = clamp(Math.round((ih / 16) * 7), 10, 64);
+      const targetW = Math.round((iw / ih) * targetH);
+      const px = item.x * TILE + Math.floor((TILE - targetW) / 2);
+      const py = item.y * TILE + (TILE - targetH);
+      ctx.drawImage(image, 0, 0, iw, ih, px, py, targetW, targetH);
+    }
+
     // Agents sorted by Y for depth.
     const agents = [...state.agents.values()].sort((a, b) => a.y - b.y);
     const time = performance.now() / 1000;
@@ -1485,6 +1819,13 @@
   function handleVscodeMessage(message) {
     if (!message || typeof message !== 'object') return;
 
+    if (message.type === 'layoutLoaded' && message.layout && typeof message.layout === 'object') {
+      if (state.ready) {
+        restoreCustomLayout(message.layout);
+      }
+      return;
+    }
+
     if (message.type === 'existingAgents') {
       handleExistingAgents(message);
       markUpdated();
@@ -1620,6 +1961,8 @@
 
     await buildAssetPools(catalog);
     assignPropsToWorld();
+    restoreCustomLayout(null);
+    refreshFurnitureSelectors();
 
     if (state.loadedAssets > 0) {
       setStatus('Online', 'ok');
@@ -1652,9 +1995,60 @@
     state.zoom = clamp(state.zoom - 0.25, 1.25, 5);
   });
 
+  for (const button of layoutModeButtons) {
+    button.addEventListener('click', () => {
+      setEditorMode(button.dataset.layoutMode || 'floor');
+    });
+  }
+
+  if (furnitureCategoryEl) {
+    furnitureCategoryEl.addEventListener('change', () => {
+      state.editor.furnitureCategory = furnitureCategoryEl.value || 'all';
+      refreshFurnitureSelectors();
+    });
+  }
+
+  if (furnitureSelectEl) {
+    furnitureSelectEl.addEventListener('change', () => {
+      state.editor.selectedFurniturePath = furnitureSelectEl.value || null;
+      updateLayoutHint();
+    });
+  }
+
+  if (layoutResetEl) {
+    layoutResetEl.addEventListener('click', () => {
+      resetToDefaultLayout();
+    });
+  }
+
+  canvas.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+  });
+
+  canvas.addEventListener('mousedown', (event) => {
+    if (!state.ready) return;
+    if (event.button !== 0 && event.button !== 2) return;
+    state.editor.painting = true;
+    onCanvasPointer(event);
+  });
+
+  canvas.addEventListener('mousemove', (event) => {
+    if (!state.editor.painting || !state.ready) return;
+    onCanvasPointer(event);
+  });
+
+  window.addEventListener('mouseup', () => {
+    state.editor.painting = false;
+  });
+
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('message', (event) => handleVscodeMessage(event.data));
+  window.addEventListener('beforeunload', () => {
+    if (state.editor.saveTimer) clearTimeout(state.editor.saveTimer);
+    saveCustomLayoutNow();
+  });
 
+  setEditorMode('floor');
   boot().catch((err) => {
     setStatus('Panel init failed', 'error');
     pushEvent('init error', err && err.message ? err.message : String(err));

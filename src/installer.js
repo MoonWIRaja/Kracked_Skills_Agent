@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const https = require('node:https');
 const { spawnSync } = require('node:child_process');
 const { showStep, showSuccess, showError, showWarning, showInfo, showDivider, c } = require('./display');
 const { SUPPORTED_IDES, generateAdapter, generateIDEConfig } = require('./adapters');
@@ -64,6 +65,10 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
+const PANEL_REMOTE_BASE = 'https://raw.githubusercontent.com/MoonWIRaja/Kracked_Skills_Agent/main/ide/vscode-kd-pixel-panel';
+const PANEL_MIN_VERSION = '0.3.2';
+const PANEL_MIN_LAYOUT_BYTES = 36000;
+
 function normalizeToolName(tool) {
   const value = String(tool || '').trim().toLowerCase();
   if (value === 'claude' || value === 'claudecode' || value === 'claude-code') {
@@ -99,12 +104,170 @@ function copyDirRecursive(src, dest) {
   }
 }
 
+function removeDirRecursive(dirPath) {
+  if (!fs.existsSync(dirPath)) return;
+  fs.rmSync(dirPath, { recursive: true, force: true });
+}
+
 function ensureDirRecursive(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
 function isValidObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseSemverParts(raw) {
+  const value = String(raw || '').trim().replace(/^v/i, '');
+  const m = value.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!m) return [0, 0, 0];
+  return [Number.parseInt(m[1], 10), Number.parseInt(m[2], 10), Number.parseInt(m[3], 10)];
+}
+
+function compareSemver(a, b) {
+  const pa = parseSemverParts(a);
+  const pb = parseSemverParts(b);
+  for (let i = 0; i < 3; i += 1) {
+    if (pa[i] > pb[i]) return 1;
+    if (pa[i] < pb[i]) return -1;
+  }
+  return 0;
+}
+
+function readPanelBundleInfo(panelDir) {
+  const info = {
+    version: '0.0.0',
+    extensionBytes: 0,
+    layoutBytes: 0,
+    hasLayoutV3: false,
+    fresh: false,
+  };
+
+  try {
+    const pkgPath = path.join(panelDir, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      if (pkg && typeof pkg.version === 'string') {
+        info.version = pkg.version;
+      }
+    }
+  } catch {
+    // ignore parse errors; fresh check will fail.
+  }
+
+  const extensionPath = path.join(panelDir, 'extension.js');
+  if (fs.existsSync(extensionPath)) {
+    info.extensionBytes = fs.statSync(extensionPath).size;
+    const text = fs.readFileSync(extensionPath, 'utf8');
+    info.hasLayoutV3 = text.includes("officeLayout.v3");
+  }
+
+  const layoutPath = path.join(panelDir, 'dist', 'webview', 'assets', 'default-layout.json');
+  if (fs.existsSync(layoutPath)) {
+    info.layoutBytes = fs.statSync(layoutPath).size;
+  }
+
+  info.fresh = compareSemver(info.version, PANEL_MIN_VERSION) >= 0
+    && info.hasLayoutV3
+    && info.layoutBytes >= PANEL_MIN_LAYOUT_BYTES;
+
+  return info;
+}
+
+function downloadUrlBuffer(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 4) {
+      reject(new Error('too many redirects'));
+      return;
+    }
+
+    const req = https.get(url, {
+      headers: {
+        'User-Agent': 'kracked-skills-agent-installer',
+        'Cache-Control': 'no-cache',
+      },
+    }, (res) => {
+      const status = res.statusCode || 0;
+      if ([301, 302, 307, 308].includes(status) && res.headers.location) {
+        res.resume();
+        downloadUrlBuffer(res.headers.location, redirects + 1).then(resolve).catch(reject);
+        return;
+      }
+
+      if (status < 200 || status >= 300) {
+        res.resume();
+        reject(new Error(`HTTP ${status}`));
+        return;
+      }
+
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    });
+
+    req.setTimeout(8000, () => {
+      req.destroy(new Error('request timeout'));
+    });
+
+    req.on('error', reject);
+  });
+}
+
+function parseAssetRefsFromIndexHtml(indexHtml) {
+  const refs = new Set();
+  const regex = /(src|href)="\.\/assets\/([^"]+)"/g;
+  let match = regex.exec(indexHtml);
+  while (match) {
+    refs.add(`dist/webview/assets/${match[2]}`);
+    match = regex.exec(indexHtml);
+  }
+  return [...refs];
+}
+
+async function syncPanelBundleFromRemote(panelDest) {
+  const tmpDir = `${panelDest}.__remote_sync`;
+  removeDirRecursive(tmpDir);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const staticFiles = [
+    'package.json',
+    'extension.js',
+    'README.md',
+    'LICENSE',
+    'THIRD_PARTY_NOTICES.md',
+    'dist/webview/index.html',
+    'dist/webview/Screenshot.jpg',
+    'dist/webview/characters.png',
+    'dist/webview/assets/default-layout.json',
+    'dist/webview/assets/walls.png',
+    'dist/webview/assets/FSPixelSansUnicode-Regular-D9-dh-Uo.ttf',
+    'dist/webview/assets/characters/char_0.png',
+    'dist/webview/assets/characters/char_1.png',
+    'dist/webview/assets/characters/char_2.png',
+    'dist/webview/assets/characters/char_3.png',
+    'dist/webview/assets/characters/char_4.png',
+    'dist/webview/assets/characters/char_5.png',
+  ];
+
+  const indexUrl = `${PANEL_REMOTE_BASE}/dist/webview/index.html`;
+  const indexBuffer = await downloadUrlBuffer(indexUrl);
+  const indexHtml = indexBuffer.toString('utf8');
+  const dynamicAssetFiles = parseAssetRefsFromIndexHtml(indexHtml);
+
+  const files = [...new Set([...staticFiles, ...dynamicAssetFiles])];
+
+  for (const rel of files) {
+    const url = `${PANEL_REMOTE_BASE}/${rel}`;
+    const data = rel === 'dist/webview/index.html' ? indexBuffer : await downloadUrlBuffer(url);
+    const dest = path.join(tmpDir, ...rel.split('/'));
+    ensureDirRecursive(path.dirname(dest));
+    fs.writeFileSync(dest, data);
+  }
+
+  removeDirRecursive(panelDest);
+  fs.renameSync(tmpDir, panelDest);
+  return { ok: true, files: files.length };
 }
 
 function writePanelHelperScripts(targetDir) {
@@ -723,7 +886,30 @@ async function install(args) {
   const panelDest = path.join(krackDir, 'tools', 'vscode-kd-pixel-panel');
   writePanelHelperScripts(targetDir);
   if (fs.existsSync(panelSrc)) {
+    removeDirRecursive(panelDest);
     copyDirRecursive(panelSrc, panelDest);
+    let panelInfo = readPanelBundleInfo(panelDest);
+    if (!panelInfo.fresh) {
+      showWarning(
+        `Native panel bundle looks stale (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes). Attempting remote sync...`
+      );
+      try {
+        const syncResult = await syncPanelBundleFromRemote(panelDest);
+        panelInfo = readPanelBundleInfo(panelDest);
+        if (panelInfo.fresh) {
+          showSuccess(`Native panel synced from GitHub (${syncResult.files} files, version=${panelInfo.version})`);
+        } else {
+          showWarning(
+            `Remote sync completed but bundle still not fresh (version=${panelInfo.version}, layout=${panelInfo.layoutBytes} bytes)`
+          );
+        }
+      } catch (err) {
+        showWarning(`Remote panel sync failed: ${err && err.message ? err.message : String(err)}`);
+        showInfo('If this persists, run install with explicit ref: npx github:MoonWIRaja/Kracked_Skills_Agent#main install');
+      }
+    } else {
+      showSuccess(`Native panel bundle ready (version=${panelInfo.version})`);
+    }
     showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install + kd-panel-tui + kd-panel-web scripts created');
   } else {
     showWarning('Native panel source not found; skipping panel scaffolding');

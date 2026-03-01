@@ -32,6 +32,8 @@ Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
 npx github:MoonWIRaja/Kracked_Skills_Agent install
 ```
 
+If your local `npx` cache is stale, installer now auto-validates the native panel bundle and tries to self-sync from GitHub `main`.
+
 ### Install (Non-Interactive)
 
 ```bash
@@ -297,6 +299,11 @@ KD Pixel: Reset Office Layout
 ```
 
 If still old, confirm extension version is `0.3.2` or newer.
+If installer reports stale cached package, run:
+
+```bash
+npx github:MoonWIRaja/Kracked_Skills_Agent#main install
+```
 
 ### Antigravity but panel tidak muncul
 

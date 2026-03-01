@@ -757,15 +757,154 @@
     }
   }
 
-  function tileFallbackColor(tileType, x, y) {
+  // Seeded random for deterministic per-tile variation
+  function tileRand(x, y, seed) {
+    let h = 2166136261;
+    h ^= x * 374761393; h = Math.imul(h, 16777619);
+    h ^= y * 668265263; h = Math.imul(h, 16777619);
+    h ^= (seed || 0) * 123456789; h = Math.imul(h, 16777619);
+    return ((h >>> 0) % 1000) / 1000;
+  }
+
+  function drawTile(ctx, tileType, px, py, x, y) {
+    const T = TILE;
     const checker = (x + y) % 2 === 0;
-    if (tileType === TILE_WALL) return checker ? '#263149' : '#1f273c';
-    if (tileType === TILE_OUTDOOR) return checker ? '#3d6447' : '#34583e';
-    if (tileType === TILE_WATER) return checker ? '#376490' : '#2f5780';
-    if (tileType === TILE_FLOOR_MEETING) return checker ? '#896039' : '#7d5533';
-    if (tileType === TILE_FLOOR_OPS) return checker ? '#cabfb9' : '#beb2ac';
-    if (tileType === TILE_FLOOR_LOUNGE) return checker ? '#4e7c9e' : '#467292';
-    return checker ? '#8a6036' : '#7d5531';
+    const r1 = tileRand(x, y, 0);
+    const r2 = tileRand(x, y, 1);
+    const r3 = tileRand(x, y, 2);
+
+    switch (tileType) {
+      case TILE_VOID:
+        return; // transparent, background shows through
+
+      case TILE_FLOOR_MAIN: {
+        // Warm wood plank floor
+        ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
+        ctx.fillRect(px, py, T, T);
+        // Wood grain lines
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(px, py + 4, T, 1);
+        ctx.fillRect(px, py + 10, T, 1);
+        // Plank gap
+        if (checker) {
+          ctx.fillStyle = 'rgba(0,0,0,0.15)';
+          ctx.fillRect(px + Math.floor(r1 * 8) + 3, py, 1, T);
+        }
+        // Subtle highlight
+        ctx.fillStyle = 'rgba(255,220,160,0.06)';
+        ctx.fillRect(px + 1, py + 1, T - 2, 2);
+        break;
+      }
+
+      case TILE_FLOOR_MEETING: {
+        // Rich dark wood - meeting room
+        ctx.fillStyle = checker ? '#6e4928' : '#634022';
+        ctx.fillRect(px, py, T, T);
+        // Parquet pattern
+        ctx.fillStyle = 'rgba(255,200,120,0.06)';
+        if (checker) {
+          ctx.fillRect(px + 1, py + 1, 6, T - 2);
+          ctx.fillRect(px + 9, py + 1, 6, T - 2);
+        } else {
+          ctx.fillRect(px + 1, py + 1, T - 2, 6);
+          ctx.fillRect(px + 1, py + 9, T - 2, 6);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillRect(px, py + 7, T, 1);
+        break;
+      }
+
+      case TILE_FLOOR_OPS: {
+        // Clean stone/tile - ops room
+        ctx.fillStyle = checker ? '#8a8a98' : '#7e7e8c';
+        ctx.fillRect(px, py, T, T);
+        // Tile grout
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.fillRect(px + T - 1, py, 1, T);
+        ctx.fillRect(px, py + T - 1, T, 1);
+        // Subtle sheen
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(px + 2, py + 2, 4, 4);
+        break;
+      }
+
+      case TILE_FLOOR_LOUNGE: {
+        // Soft blue carpet - lounge
+        ctx.fillStyle = checker ? '#3b6080' : '#345874';
+        ctx.fillRect(px, py, T, T);
+        // Carpet texture
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(px + Math.floor(r1 * 6) + 2, py + Math.floor(r2 * 6) + 2, 2, 2);
+        ctx.fillRect(px + Math.floor(r3 * 6) + 6, py + Math.floor(r1 * 6) + 7, 2, 2);
+        break;
+      }
+
+      case TILE_WALL: {
+        // Stone brick wall
+        ctx.fillStyle = '#1c2236';
+        ctx.fillRect(px, py, T, T);
+        ctx.fillStyle = '#252d44';
+        ctx.fillRect(px + 1, py + 1, T - 2, 6);
+        ctx.fillRect(px + 1, py + 9, T - 2, 6);
+        // Mortar lines
+        ctx.fillStyle = '#161c2e';
+        ctx.fillRect(px, py + 7, T, 2);
+        ctx.fillRect(px + (checker ? 5 : 11), py, 1, 7);
+        ctx.fillRect(px + (checker ? 11 : 5), py + 9, 1, 7);
+        // Top highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(px + 1, py + 1, T - 2, 1);
+        break;
+      }
+
+      case TILE_OUTDOOR: {
+        // Grass with variation
+        const baseG = checker ? 62 : 56;
+        const gVar = Math.floor(r1 * 12) - 6;
+        ctx.fillStyle = `rgb(${45 + gVar}, ${baseG + gVar}, ${38 + gVar})`;
+        ctx.fillRect(px, py, T, T);
+        // Grass tufts
+        if (r2 > 0.6) {
+          ctx.fillStyle = 'rgba(80,140,70,0.35)';
+          ctx.fillRect(px + Math.floor(r1 * 10) + 2, py + Math.floor(r3 * 8) + 3, 1, 3);
+          ctx.fillRect(px + Math.floor(r3 * 8) + 5, py + Math.floor(r2 * 6) + 6, 1, 2);
+        }
+        // Dirt speck
+        if (r3 > 0.8) {
+          ctx.fillStyle = 'rgba(90,70,40,0.2)';
+          ctx.fillRect(px + Math.floor(r2 * 12) + 1, py + Math.floor(r1 * 12) + 1, 2, 2);
+        }
+        // Occasional flower
+        if (r1 > 0.92 && r2 > 0.5) {
+          ctx.fillStyle = r3 > 0.5 ? '#e8c84a' : '#d66b8f';
+          ctx.fillRect(px + Math.floor(r3 * 10) + 3, py + Math.floor(r2 * 8) + 4, 2, 2);
+        }
+        break;
+      }
+
+      case TILE_WATER: {
+        // Animated water
+        const waveOff = Math.sin((x * 0.8 + y * 0.5) + performance.now() / 1200) * 0.12;
+        const baseBlue = checker ? 80 : 72;
+        ctx.fillStyle = `rgb(${35 + Math.floor(waveOff * 20)}, ${55 + Math.floor(waveOff * 15)}, ${baseBlue + Math.floor(waveOff * 25)})`;
+        ctx.fillRect(px, py, T, T);
+        // Wave highlight
+        const waveX = Math.floor(Math.sin((x * 1.3 + performance.now() / 800)) * 4 + 6);
+        ctx.fillStyle = 'rgba(120,180,220,0.2)';
+        ctx.fillRect(px + waveX, py + 4, 4, 1);
+        ctx.fillRect(px + (T - waveX - 2), py + 10, 3, 1);
+        // Depth gradient
+        ctx.fillStyle = 'rgba(0,10,30,0.1)';
+        ctx.fillRect(px, py + T - 3, T, 3);
+        break;
+      }
+
+      default: {
+        ctx.fillStyle = checker ? '#8a6036' : '#7d5531';
+        ctx.fillRect(px, py, T, T);
+        break;
+      }
+    }
   }
 
   function drawWorld() {
@@ -798,23 +937,10 @@
     for (let y = 0; y < WORLD.rows; y += 1) {
       for (let x = 0; x < WORLD.cols; x += 1) {
         const tileType = getTile(x, y);
-        const tilePool = resolveTilePool(tileType);
-        const tile = pickDeterministic(tilePool, x, y, tileType);
-
         const px = x * TILE;
         const py = y * TILE;
 
-        if (tile && tile.image) {
-          ctx.drawImage(tile.image, tile.sx, tile.sy, tile.sw, tile.sh, px, py, TILE, TILE);
-        } else {
-          ctx.fillStyle = tileFallbackColor(tileType, x, y);
-          ctx.fillRect(px, py, TILE, TILE);
-        }
-
-        if (tileType === TILE_WALL) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-          ctx.strokeRect(px, py, TILE, TILE);
-        }
+        drawTile(ctx, tileType, px, py, x, y);
       }
     }
 

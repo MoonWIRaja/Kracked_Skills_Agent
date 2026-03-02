@@ -6,11 +6,13 @@
   const LAYOUT_ENDPOINT = '/api/layout';
   const DEFAULT_LAYOUT_PATH = './assets/default-layout.json';
   const SOUND_KEY = 'kdPixel.web.soundEnabled';
-  const LAYOUT_KEY = 'kdPixel.web.layout.v3';
+  const LAYOUT_KEY = 'kdPixel.web.layout.v4';
   const AGENT_ID_MAP_KEY = 'kdPixel.web.agentIdByKey';
   const NEXT_AGENT_ID_KEY = 'kdPixel.web.nextAgentId';
   const AGENT_SEATS_KEY = 'kdPixel.web.agentSeats';
   const ALPHA_THRESHOLD = 16;
+  const DEFAULT_TILE_SIZE = 16;
+  const FURNITURE_CATEGORIES = ['desks', 'chairs', 'storage', 'electronics', 'decor', 'wall', 'misc'];
 
   const hasNativeVscode = typeof window.acquireVsCodeApi === 'function';
   const nativeAcquire = hasNativeVscode ? window.acquireVsCodeApi.bind(window) : null;
@@ -403,15 +405,176 @@
     return characters;
   }
 
+  function parseAssetNumbers(assetId) {
+    const matches = String(assetId || '').match(/\d+/g);
+    if (!matches) return [];
+    return matches.map((value) => Number.parseInt(value, 10)).filter((value) => Number.isFinite(value));
+  }
+
+  function assetNumericSignature(assetId) {
+    const numbers = parseAssetNumbers(assetId);
+    if (numbers.length === 0) return hash32(assetId);
+    let signature = 0;
+    for (let i = 0; i < numbers.length; i += 1) {
+      signature = (signature * 131 + (numbers[i] * (i + 1))) >>> 0;
+    }
+    return signature;
+  }
+
+  function firstAssetNumber(assetId) {
+    const numbers = parseAssetNumbers(assetId);
+    return numbers.length > 0 ? numbers[0] : -1;
+  }
+
+  function categoryForAsset(assetId) {
+    const n = firstAssetNumber(assetId);
+    if ([18, 72, 106, 109, 139, 140, 141, 142, 143].includes(n)) return 'storage';
+    if ([33, 34, 41, 42, 49, 61, 83, 84, 90].includes(n)) return 'chairs';
+    if ([7, 44, 99, 100, 101, 102, 111, 112, 123].includes(n)) return 'electronics';
+    if ([17, 27, 40, 51, 110].includes(n)) return 'desks';
+    if (n >= 0) return FURNITURE_CATEGORIES[n % FURNITURE_CATEGORIES.length];
+    return 'misc';
+  }
+
+  function labelForAsset(assetId) {
+    return String(assetId || 'Asset')
+      .replace(/^ASSET_NEW_/i, 'Asset ')
+      .replace(/^ASSET_/i, 'Asset ')
+      .replace(/_/g, ' ')
+      .trim();
+  }
+
+  function footprintForAsset(assetId) {
+    const n = firstAssetNumber(assetId);
+    if ([17, 40, 51, 109, 110].includes(n)) return { width: 2, height: 2 };
+    if ([18, 72, 106, 139, 140, 141, 142, 143].includes(n)) return { width: 1, height: 2 };
+    if ([100, 101, 102].includes(n)) return { width: 2, height: 1 };
+    return { width: 1, height: 1 };
+  }
+
+  function isLikelyFurnitureTile(tile) {
+    if (!tile) return false;
+    if (tile.opaqueCount < 18) return false;
+    if (tile.uniqueColors < 2) return false;
+    if (tile.opaqueCount > 245 && tile.uniqueColors < 4) return false;
+    return true;
+  }
+
+  async function buildFurnitureTilePool() {
+    const sheetPaths = [
+      './assets/office/B-C-D-E Office 1 No Shadows.png',
+      './assets/office/B-C-D-E Office 2 No Shadows.png',
+      './assets/office/Office Tileset All 16x16 no shadow.png',
+    ];
+
+    const pool = [];
+    for (let sheetIndex = 0; sheetIndex < sheetPaths.length; sheetIndex += 1) {
+      const src = sheetPaths[sheetIndex];
+      try {
+        const image = await loadImage(src);
+        const { ctx } = makeCanvasFromImage(image);
+        const cols = Math.floor(image.width / DEFAULT_TILE_SIZE);
+        const rows = Math.floor(image.height / DEFAULT_TILE_SIZE);
+
+        for (let y = 0; y < rows; y += 1) {
+          for (let x = 0; x < cols; x += 1) {
+            const tile = imageToSprite(
+              ctx,
+              x * DEFAULT_TILE_SIZE,
+              y * DEFAULT_TILE_SIZE,
+              DEFAULT_TILE_SIZE,
+              DEFAULT_TILE_SIZE,
+            );
+            if (!isLikelyFurnitureTile(tile)) continue;
+            pool.push({
+              sheetIndex,
+              x,
+              y,
+              sprite: tile.sprite,
+              opaqueCount: tile.opaqueCount,
+              uniqueColors: tile.uniqueColors,
+            });
+          }
+        }
+      } catch {
+        // Continue with other sheets.
+      }
+    }
+    return pool;
+  }
+
+  function buildCatalogEntry(assetId, category, footprint) {
+    return {
+      id: assetId,
+      name: assetId,
+      label: labelForAsset(assetId),
+      category,
+      file: `office://${assetId}.png`,
+      width: footprint.width * DEFAULT_TILE_SIZE,
+      height: footprint.height * DEFAULT_TILE_SIZE,
+      footprintW: footprint.width,
+      footprintH: footprint.height,
+      isDesk: category === 'desks',
+      canPlaceOnWalls: category === 'wall',
+      canPlaceOnSurfaces: category === 'electronics' || category === 'decor',
+      backgroundTiles: 0,
+    };
+  }
+
+  function pickSpriteForAsset(assetId, tilePool) {
+    if (!tilePool || tilePool.length === 0) return null;
+    const sig = assetNumericSignature(assetId);
+    return tilePool[sig % tilePool.length].sprite;
+  }
+
+  async function loadFurnitureAssets() {
+    const layout = await fetchJson(DEFAULT_LAYOUT_PATH);
+    const idsFromLayout = layout && Array.isArray(layout.furniture)
+      ? [...new Set(layout.furniture
+        .map((item) => item && item.type)
+        .filter((value) => typeof value === 'string' && value.trim() !== ''))].sort((a, b) => a.localeCompare(b))
+      : [];
+
+    const tilePool = await buildFurnitureTilePool();
+    if (!tilePool || tilePool.length === 0) return null;
+
+    const catalog = [];
+    const sprites = {};
+    const usedIds = new Set();
+
+    for (const assetId of idsFromLayout) {
+      const sprite = pickSpriteForAsset(assetId, tilePool);
+      if (!sprite) continue;
+      const category = categoryForAsset(assetId);
+      const footprint = footprintForAsset(assetId);
+      sprites[assetId] = sprite;
+      catalog.push(buildCatalogEntry(assetId, category, footprint));
+      usedIds.add(assetId);
+    }
+
+    const extraCount = Math.min(160, tilePool.length);
+    for (let i = 0; i < extraCount; i += 1) {
+      const extraId = `ASSET_AUTO_${String(i).padStart(3, '0')}`;
+      if (usedIds.has(extraId)) continue;
+      const category = FURNITURE_CATEGORIES[i % FURNITURE_CATEGORIES.length];
+      sprites[extraId] = tilePool[i].sprite;
+      catalog.push(buildCatalogEntry(extraId, category, { width: 1, height: 1 }));
+    }
+
+    if (catalog.length === 0) return null;
+    return { catalog, sprites };
+  }
+
   async function sendVisualAssets(force = false) {
     if (visualAssetsSent && !force) return;
     visualAssetsSent = true;
 
     try {
-      const [wallSprites, characterSprites, floorSprites] = await Promise.all([
+      const [wallSprites, characterSprites, floorSprites, furnitureAssets] = await Promise.all([
         loadWallSprites().catch(() => null),
         loadCharacterSprites().catch(() => null),
         loadFloorSprites().catch(() => null),
+        loadFurnitureAssets().catch(() => null),
       ]);
 
       if (characterSprites && characterSprites.length > 0) {
@@ -422,6 +585,13 @@
       }
       if (floorSprites && floorSprites.length > 0) {
         dispatchToUi({ type: 'floorTilesLoaded', sprites: floorSprites });
+      }
+      if (furnitureAssets && furnitureAssets.catalog && furnitureAssets.catalog.length > 0) {
+        dispatchToUi({
+          type: 'furnitureAssetsLoaded',
+          catalog: furnitureAssets.catalog,
+          sprites: furnitureAssets.sprites,
+        });
       }
     } catch {
       // keep panel functional even when visual assets fail

@@ -64,8 +64,8 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_MIN_VERSION = '0.6.2';
-const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v9';
+const PANEL_MIN_VERSION = '0.6.3';
+const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v10';
 const PANEL_MIN_WEBVIEW_JS_BYTES = 250000;
 
 function normalizeToolName(tool) {
@@ -217,6 +217,7 @@ function applyPanelHotfixes(panelDest) {
   if (content.includes(PANEL_LAYOUT_STATE_KEY)) return { changed: false };
 
   const updated = content
+    .replace(/kdPixel\.layoutPreset\.v9/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.layoutPreset\.v8/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.layoutPreset\.v7/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.officeLayout\.v4/g, PANEL_LAYOUT_STATE_KEY)

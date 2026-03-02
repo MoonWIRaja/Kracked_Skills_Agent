@@ -2,66 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KD Pixel Panel</title>
-    <link rel="stylesheet" href="./kd-panel.css" />
+    <script src="./kd-web-shim.js"></script>
+    <script type="module" crossorigin src="./assets/index-CgVMlgSL.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CDgABIYG.css">
   </head>
   <body>
-    <div class="kd-root">
-      <section class="kd-stage">
-        <canvas id="kdCanvas"></canvas>
-        <div class="kd-controls">
-          <button id="zoomIn" class="kd-btn">+</button>
-          <button id="zoomOut" class="kd-btn">-</button>
-        </div>
-        <div id="kdLayoutPanel" class="kd-layout-panel">
-          <div class="kd-layout-modes">
-            <button class="kd-layout-btn is-active" data-layout-mode="floor">Floor</button>
-            <button class="kd-layout-btn" data-layout-mode="wall">Wall</button>
-            <button class="kd-layout-btn" data-layout-mode="furniture">Furniture</button>
-            <button class="kd-layout-btn kd-layout-danger" data-layout-mode="eraser">Eraser</button>
-          </div>
-          <div class="kd-layout-pickers">
-            <select id="kdFurnitureCategory" class="kd-layout-select">
-              <option value="all">all</option>
-              <option value="desk">desk</option>
-              <option value="chair">chair</option>
-              <option value="storage">storage</option>
-              <option value="tech">tech</option>
-              <option value="decor">decor</option>
-              <option value="nature">nature</option>
-            </select>
-            <select id="kdFurnitureSelect" class="kd-layout-select"></select>
-            <button id="kdLayoutReset" class="kd-layout-btn">Reset</button>
-          </div>
-          <p id="kdLayoutHint" class="kd-layout-hint">Mode: Floor. Drag on map to paint.</p>
-        </div>
-        <div class="kd-badge">KD RPG WORLD - Asset Pack Runtime</div>
-      </section>
-      <aside class="kd-side">
-        <div class="kd-box">
-          <h3>System</h3>
-          <p>Status: <strong id="kdStatus">Loading...</strong></p>
-          <p>Agents: <strong id="kdAgents">0</strong></p>
-          <p>Assets: <strong id="kdAssets">0</strong></p>
-          <p>Updated: <strong id="kdUpdated">-</strong></p>
-        </div>
-        <div class="kd-box">
-          <h3>Agents</h3>
-          <div id="kdAgentList" class="kd-list"></div>
-        </div>
-        <div class="kd-box">
-          <h3>Events</h3>
-          <div id="kdEventList" class="kd-list"></div>
-        </div>
-      </aside>
-    </div>
-    <script>
-      window.__KD_WEBVIEW_DIST_BASE__ = '__KD_DIST_BASE__';
-      window.__KD_WEBVIEW_ASSET_BASE__ = '__KD_ASSET_BASE__';
-      window.__KD_WEBVIEW_CATALOG__ = '__KD_CATALOG_URI__';
-      window.__KD_WEBVIEW_MANIFEST__ = '__KD_MANIFEST_URI__';
-    </script>
-    <script src="./kd-panel.js"></script>
+    <div id="root"></div>
   </body>
 </html>

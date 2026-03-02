@@ -340,15 +340,6 @@ function mimeType(filePath) {
   }
 }
 
-function injectWebPlaceholders(htmlText) {
-  const html = String(htmlText || '');
-  return html
-    .replace(/__KD_DIST_BASE__/g, '.')
-    .replace(/__KD_ASSET_BASE__/g, './kd-asset-pack')
-    .replace(/__KD_CATALOG_URI__/g, './kd-asset-pack/catalog.json')
-    .replace(/__KD_MANIFEST_URI__/g, './kd-asset-pack/manifest.json');
-}
-
 function safeStaticPath(rootDir, requestPath) {
   const clean = String(requestPath || '/').split('?')[0].split('#')[0];
   let rel = clean === '/' ? 'index.html' : clean.replace(/^\/+/, '');
@@ -382,58 +373,10 @@ function htmlFallback() {
 <body>
   <div class="box">
     <h3>KD Pixel web bundle not ready</h3>
-    <p>Run <code>kd-panel-install.bat</code> or rebuild asset bundle from Donarg assets folder/zip.</p>
+    <p>Run <code>kd-panel-install.bat</code> to package/install the native panel bundle.</p>
   </div>
 </body>
 </html>`;
-}
-
-function ensurePanelAssets(panelToolDir, workspaceRoot) {
-  const catalogPath = path.join(panelToolDir, 'dist', 'webview', 'kd-asset-pack', 'catalog.json');
-  let hasUsableBundle = false;
-  if (fs.existsSync(catalogPath)) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
-      const images = Array.isArray(parsed && parsed.images) ? parsed.images : [];
-      const firstImage = images[0] ? path.join(panelToolDir, 'dist', 'webview', images[0]) : null;
-      if (firstImage && fs.existsSync(firstImage)) {
-        hasUsableBundle = true;
-      } else {
-        const extractedDir = path.join(panelToolDir, 'dist', 'webview', 'kd-asset-pack', 'extracted');
-        if (fs.existsSync(extractedDir)) {
-          const files = fs.readdirSync(extractedDir, { withFileTypes: true });
-          hasUsableBundle = files.some((entry) => entry.isDirectory());
-        }
-      }
-    } catch {
-      hasUsableBundle = false;
-    }
-  }
-  if (hasUsableBundle) return { ok: true, built: false };
-
-  const builder = path.join(panelToolDir, 'build-assets-from-zip.js');
-  if (!fs.existsSync(builder)) {
-    return { ok: false, reason: 'builder script not found' };
-  }
-
-  const nodeExe = process.execPath || 'node';
-  const args = [builder, '--workspace', workspaceRoot];
-  const result = childProcess.spawnSync(nodeExe, args, {
-    cwd: panelToolDir,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
-
-  if (result.status !== 0) {
-    const reason = (result.stderr || result.stdout || '').trim() || `exit code ${result.status}`;
-    return { ok: false, reason: `asset build failed: ${reason}` };
-  }
-
-  if (!fs.existsSync(catalogPath)) {
-    return { ok: false, reason: 'catalog not generated' };
-  }
-
-  return { ok: true, built: true };
 }
 
 async function main() {
@@ -456,18 +399,30 @@ async function main() {
   if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
 
   const krackedDir = path.dirname(runtimeDir);
-  const workspaceRoot = path.dirname(krackedDir);
   const panelToolDir = path.join(krackedDir, 'tools', 'vscode-kd-pixel-panel');
   const panelWebRoot = path.join(panelToolDir, 'dist', 'webview');
+  const layoutPath = path.join(runtimeDir, 'layout.json');
 
-  let panelReady = fs.existsSync(path.join(panelWebRoot, 'index.html'));
-  if (panelReady) {
-    const buildResult = ensurePanelAssets(panelToolDir, workspaceRoot);
-    if (!buildResult.ok) {
-      process.stdout.write(`[KD][warn] ${buildResult.reason}\n`);
-      panelReady = false;
-    } else if (buildResult.built) {
-      process.stdout.write('[KD] Panel assets rebuilt from Donarg assets source\n');
+  const panelReady = fs.existsSync(path.join(panelWebRoot, 'index.html'));
+
+  function readLayout() {
+    if (fs.existsSync(layoutPath)) {
+      try {
+        return JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
+      } catch {
+        // fallback to bundled layout
+      }
+    }
+
+    const defaultLayoutPath = path.join(panelWebRoot, 'assets', 'default-layout.json');
+    if (!fs.existsSync(defaultLayoutPath)) return null;
+
+    try {
+      const parsed = JSON.parse(fs.readFileSync(defaultLayoutPath, 'utf8'));
+      fs.writeFileSync(layoutPath, JSON.stringify(parsed, null, 2), 'utf8');
+      return parsed;
+    } catch {
+      return null;
     }
   }
 
@@ -490,6 +445,43 @@ async function main() {
       return;
     }
 
+    if (url === '/api/layout' && req.method === 'GET') {
+      const layout = readLayout();
+      if (!layout) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, reason: 'layout not found' }));
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      res.end(JSON.stringify(layout));
+      return;
+    }
+
+    if (url === '/api/layout' && req.method === 'POST') {
+      let raw = '';
+      req.on('data', (chunk) => {
+        raw += chunk.toString('utf8');
+        if (raw.length > 4 * 1024 * 1024) {
+          req.destroy();
+        }
+      });
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(raw || '{}');
+          fs.writeFileSync(layoutPath, JSON.stringify(parsed, null, 2), 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: false, reason: err && err.message ? err.message : 'invalid json' }));
+        }
+      });
+      return;
+    }
+
     if (!panelReady) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(htmlFallback());
@@ -504,10 +496,7 @@ async function main() {
     }
 
     try {
-      let data = fs.readFileSync(staticFile);
-      if (/index\.html$/i.test(staticFile)) {
-        data = Buffer.from(injectWebPlaceholders(data.toString('utf8')), 'utf8');
-      }
+      const data = fs.readFileSync(staticFile);
       res.writeHead(200, {
         'Content-Type': mimeType(staticFile),
         'Cache-Control': /\.json$/i.test(staticFile) ? 'no-store' : 'public, max-age=300',
@@ -540,7 +529,7 @@ async function main() {
 
   server.listen(activePort, () => {
     const url = `http://localhost:${activePort}`;
-    process.stdout.write(`[KD] KD RPG WORLD web observer running at ${url}\n`);
+    process.stdout.write(`[KD] KD Pixel web observer running at ${url}\n`);
     process.stdout.write('[KD] Press Ctrl+C to stop.\n');
     if (autoOpen) openUrl(url);
   });

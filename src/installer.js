@@ -64,11 +64,9 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_MIN_VERSION = '0.5.1';
-const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v7';
-const PANEL_MIN_WEBVIEW_JS_BYTES = 25000;
-const PANEL_SOURCE_ZIP_NAME = 'Office Tileset (Donarg).zip';
-const PANEL_SOURCE_DIR_NAMES = ['Office Tileset', 'Office-Tileset', 'assets', 'Assets'];
+const PANEL_MIN_VERSION = '0.6.0';
+const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v8';
+const PANEL_MIN_WEBVIEW_JS_BYTES = 250000;
 
 function normalizeToolName(tool) {
   const value = String(tool || '').trim().toLowerCase();
@@ -150,8 +148,7 @@ function readPanelBundleInfo(panelDir) {
     webviewJsBytes: 0,
     hasExpectedLayoutStateKey: false,
     hasFreshWebviewBundle: false,
-    hasAssetBuilder: false,
-    hasSourceAsset: false,
+    hasWebShim: false,
     hasCoreWebviewFiles: false,
     fresh: false,
   };
@@ -175,33 +172,38 @@ function readPanelBundleInfo(panelDir) {
     info.hasExpectedLayoutStateKey = text.includes(PANEL_LAYOUT_STATE_KEY);
   }
 
-  const webviewJsPath = path.join(panelDir, 'dist', 'webview', 'kd-panel.js');
-  if (fs.existsSync(webviewJsPath)) {
-    info.webviewJsBytes = fs.statSync(webviewJsPath).size;
+  const assetsDir = path.join(panelDir, 'dist', 'webview', 'assets');
+  let webviewBundlePath = null;
+  if (fs.existsSync(assetsDir)) {
+    const candidates = fs.readdirSync(assetsDir)
+      .filter((name) => /^index-[\w-]+\.js$/i.test(name))
+      .sort((a, b) => a.localeCompare(b));
+    if (candidates.length > 0) {
+      webviewBundlePath = path.join(assetsDir, candidates[candidates.length - 1]);
+    }
+  }
+  if (webviewBundlePath && fs.existsSync(webviewBundlePath)) {
+    info.webviewJsBytes = fs.statSync(webviewBundlePath).size;
     info.hasFreshWebviewBundle = info.webviewJsBytes >= PANEL_MIN_WEBVIEW_JS_BYTES;
   }
+  info.hasWebShim = fs.existsSync(path.join(panelDir, 'dist', 'webview', 'kd-web-shim.js'));
 
-  info.hasAssetBuilder = fs.existsSync(path.join(panelDir, 'build-assets-from-zip.js'));
-  const sourceCandidates = [
-    path.join(panelDir, 'asset-pack', PANEL_SOURCE_ZIP_NAME),
-    path.join(panelDir, PANEL_SOURCE_ZIP_NAME),
-    ...PANEL_SOURCE_DIR_NAMES.map((name) => path.join(panelDir, 'asset-pack', name)),
-    ...PANEL_SOURCE_DIR_NAMES.map((name) => path.join(panelDir, name)),
-  ];
-  info.hasSourceAsset = sourceCandidates.some((candidate) => fs.existsSync(candidate));
+  const hasCssBundle = fs.existsSync(assetsDir) && fs.readdirSync(assetsDir)
+    .some((name) => /^index-[\w-]+\.css$/i.test(name));
 
   const requiredFiles = [
     path.join(panelDir, 'dist', 'webview', 'index.html'),
-    path.join(panelDir, 'dist', 'webview', 'kd-panel.js'),
-    path.join(panelDir, 'dist', 'webview', 'kd-panel.css'),
+    path.join(panelDir, 'dist', 'webview', 'assets', 'default-layout.json'),
+    path.join(panelDir, 'dist', 'webview', 'assets', 'walls.png'),
+    path.join(panelDir, 'dist', 'webview', 'assets', 'characters', 'char_0.png'),
+    path.join(panelDir, 'dist', 'webview', 'kd-web-shim.js'),
   ];
-  info.hasCoreWebviewFiles = requiredFiles.every((filePath) => fs.existsSync(filePath));
+  info.hasCoreWebviewFiles = requiredFiles.every((filePath) => fs.existsSync(filePath)) && hasCssBundle;
 
   info.fresh = compareSemver(info.version, PANEL_MIN_VERSION) >= 0
     && info.hasExpectedLayoutStateKey
     && info.hasFreshWebviewBundle
-    && info.hasAssetBuilder
-    && info.hasSourceAsset
+    && info.hasWebShim
     && info.hasCoreWebviewFiles;
 
   return info;
@@ -215,6 +217,7 @@ function applyPanelHotfixes(panelDest) {
   if (content.includes(PANEL_LAYOUT_STATE_KEY)) return { changed: false };
 
   const updated = content
+    .replace(/kdPixel\.layoutPreset\.v7/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.officeLayout\.v4/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.officeLayout\.v2/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.officeLayout\.v3/g, PANEL_LAYOUT_STATE_KEY);
@@ -236,9 +239,6 @@ if not exist "%PANEL_DIR%\\package.json" (
 )
 cd /d "%PANEL_DIR%"
 del /q *.vsix >nul 2>&1
-echo [KD] Rebuilding panel assets from Donarg assets (folder or zip)...
-call node "%PANEL_DIR%\\build-assets-from-zip.js" --workspace "%~dp0"
-if errorlevel 1 exit /b 1
 echo [KD] Packaging VS Code panel extension...
 call npx @vscode/vsce package
 if errorlevel 1 exit /b 1
@@ -266,8 +266,6 @@ if (-not (Test-Path (Join-Path $panelDir "package.json"))) {
 
 Set-Location $panelDir
 Get-ChildItem -Path $panelDir -Filter *.vsix -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-Write-Host "[KD] Rebuilding panel assets from Donarg assets (folder or zip)..."
-node (Join-Path $panelDir "build-assets-from-zip.js") --workspace $PSScriptRoot
 Write-Host "[KD] Packaging VS Code panel extension..."
 npx @vscode/vsce package
 
@@ -395,31 +393,6 @@ function formatRunError(result) {
   return `exit code ${result.status}`;
 }
 
-function runPanelAssetBuild(panelDir, workspaceDir) {
-  const builderScript = path.join(panelDir, 'build-assets-from-zip.js');
-  if (!fs.existsSync(builderScript)) {
-    return {
-      ok: false,
-      reason: 'build-assets-from-zip.js not found',
-    };
-  }
-
-  const args = [builderScript];
-  if (workspaceDir) {
-    args.push('--workspace', workspaceDir);
-  }
-
-  const buildResult = runCommand(panelDir, 'node', args);
-  if (buildResult.status !== 0) {
-    return {
-      ok: false,
-      reason: `Asset build failed (${formatRunError(buildResult)})`,
-    };
-  }
-
-  return { ok: true };
-}
-
 function tryInstallNativePanel(targetDir) {
   const panelDir = path.join(targetDir, '.kracked', 'tools', 'vscode-kd-pixel-panel');
   const packageJsonPath = path.join(panelDir, 'package.json');
@@ -427,14 +400,6 @@ function tryInstallNativePanel(targetDir) {
     return {
       ok: false,
       reason: `Native panel folder not found: ${panelDir}`,
-    };
-  }
-
-  const buildResult = runPanelAssetBuild(panelDir, targetDir);
-  if (!buildResult.ok) {
-    return {
-      ok: false,
-      reason: buildResult.reason,
     };
   }
 
@@ -936,9 +901,9 @@ async function install(args) {
       showSuccess(`Native panel bundle ready (version=${panelInfo.version})`);
     } else {
       showWarning(
-        `Native panel bundle missing required files (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, sourceAsset=${panelInfo.hasSourceAsset ? 'ok' : 'missing'})`
+        `Native panel bundle missing required files (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, shim=${panelInfo.hasWebShim ? 'ok' : 'missing'})`
       );
-      showInfo('Asset pack will be rebuilt automatically when you run kd-panel-install or kd-panel-web.');
+      showInfo('Panel bundle is static now. Reinstall from latest repo if files are missing.');
     }
     showSuccess('.kracked/tools/vscode-kd-pixel-panel + kd-panel-install + kd-panel-tui + kd-panel-web scripts created');
   } else {

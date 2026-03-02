@@ -4,8 +4,9 @@ const path = require('path');
 
 const MAX_EVENTS = 600;
 const VIEW_ID = 'kdPixel.panelView';
-const LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v7';
+const LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v8';
 const LEGACY_LAYOUT_STATE_KEYS = [
+  'kdPixel.layoutPreset.v7',
   'kdPixel.officeLayout.v4',
   'kdPixel.officeLayout.v3',
   'kdPixel.officeLayout.v2',
@@ -223,22 +224,6 @@ class KDPanelViewProvider {
       return `${attr}="${webview.asWebviewUri(fileUri)}"`;
     });
 
-    const distBaseUri = webview.asWebviewUri(vscode.Uri.file(distPath)).toString().replace(/\/+$/, '');
-    const assetBaseUri = webview
-      .asWebviewUri(vscode.Uri.file(path.join(distPath, 'kd-asset-pack')))
-      .toString()
-      .replace(/\/+$/, '');
-    const catalogUri = webview.asWebviewUri(vscode.Uri.file(path.join(distPath, 'kd-asset-pack', 'catalog.json'))).toString();
-    const manifestUri = webview
-      .asWebviewUri(vscode.Uri.file(path.join(distPath, 'kd-asset-pack', 'manifest.json')))
-      .toString();
-
-    html = html
-      .replace(/__KD_DIST_BASE__/g, distBaseUri)
-      .replace(/__KD_ASSET_BASE__/g, assetBaseUri)
-      .replace(/__KD_CATALOG_URI__/g, catalogUri)
-      .replace(/__KD_MANIFEST_URI__/g, manifestUri);
-
     return html;
   }
 
@@ -347,15 +332,6 @@ class KDPanelViewProvider {
         status: waiting ? 'waiting' : 'active',
       });
 
-      webview.postMessage({
-        type: 'agentPulse',
-        id: numericId,
-        agentName: String(event.agent_name || agentKey),
-        role: String(event.role || 'Professional Agent'),
-        action: String(event.action || ''),
-        task: String(event.task || ''),
-        message: String(event.message || ''),
-      });
     }
   }
 
@@ -449,21 +425,8 @@ class KDPanelViewProvider {
 
   async migrateLayoutStateIfNeeded() {
     const current = this.context.workspaceState.get(LAYOUT_STATE_KEY);
-    if (!isValidLayout(current)) {
-      let migrated = null;
-      for (const key of LEGACY_LAYOUT_STATE_KEYS) {
-        const legacy = this.context.workspaceState.get(key);
-        if (isValidLayout(legacy)) {
-          migrated = legacy;
-          break;
-        }
-      }
-
-      if (migrated) {
-        await this.context.workspaceState.update(LAYOUT_STATE_KEY, migrated);
-      } else if (current !== undefined) {
-        await this.context.workspaceState.update(LAYOUT_STATE_KEY, undefined);
-      }
+    if (!isValidLayout(current) && current !== undefined) {
+      await this.context.workspaceState.update(LAYOUT_STATE_KEY, undefined);
     }
 
     for (const key of LEGACY_LAYOUT_STATE_KEYS) {
@@ -481,7 +444,7 @@ class KDPanelViewProvider {
 }
 
 function loadBundledDefaultLayout(extensionPath) {
-  const layoutPath = path.join(extensionPath, 'dist', 'webview', 'kd-default-layout.json');
+  const layoutPath = path.join(extensionPath, 'dist', 'webview', 'assets', 'default-layout.json');
   if (!fs.existsSync(layoutPath)) return null;
 
   try {

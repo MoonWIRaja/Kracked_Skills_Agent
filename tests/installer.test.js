@@ -7,6 +7,15 @@ const { execFileSync } = require('node:child_process');
 
 const { install } = require('../src/installer');
 
+function findBundledAssetFile(dir, pattern) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (pattern.test(entry.name)) return entry.name;
+  }
+  return null;
+}
+
 test('installer creates core KD directories in non-interactive mode', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kd-install-'));
 
@@ -29,6 +38,11 @@ test('installer creates core KD directories in non-interactive mode', async () =
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'pixel-tui.js')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'pixel-web.js')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'package.json')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'dist', 'webview', 'index.html')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'dist', 'webview', 'kd-web-shim.js')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'dist', 'webview', 'assets', 'default-layout.json')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'dist', 'webview', 'assets', 'walls.png')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'dist', 'webview', 'assets', 'characters', 'char_0.png')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-install.bat')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-install.ps1')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-tui.bat')));
@@ -53,6 +67,17 @@ test('installer creates core KD directories in non-interactive mode', async () =
       'utf8'
     );
     const panelInstallBat = fs.readFileSync(path.join(tempDir, 'kd-panel-install.bat'), 'utf8');
+    const webviewAssetsDir = path.join(
+      tempDir,
+      '.kracked',
+      'tools',
+      'vscode-kd-pixel-panel',
+      'dist',
+      'webview',
+      'assets'
+    );
+    const webviewJs = findBundledAssetFile(webviewAssetsDir, /^index-[\w-]+\.js$/i);
+    const webviewCss = findBundledAssetFile(webviewAssetsDir, /^index-[\w-]+\.css$/i);
 
     execFileSync(
       'node',
@@ -83,6 +108,8 @@ test('installer creates core KD directories in non-interactive mode', async () =
     assert.match(codexInstructions, /Main agent for this installation: Moon/);
     assert.match(panelInstallBat, /call code --uninstall-extension/);
     assert.match(panelInstallBat, /call code --install-extension/);
+    assert.ok(webviewJs, 'expected bundled webview JS asset');
+    assert.ok(webviewCss, 'expected bundled webview CSS asset');
     assert.equal(event.source, 'antigravity');
     assert.equal(event.agent_name, 'Moon');
     assert.equal(event.task, 'kd-prd');

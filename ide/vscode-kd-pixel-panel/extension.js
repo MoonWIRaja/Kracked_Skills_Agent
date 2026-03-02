@@ -4,8 +4,10 @@ const path = require('path');
 
 const MAX_EVENTS = 600;
 const VIEW_ID = 'kdPixel.panelView';
-const LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v10';
+const LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v12';
 const LEGACY_LAYOUT_STATE_KEYS = [
+  'kdPixel.layoutPreset.v11',
+  'kdPixel.layoutPreset.v10',
   'kdPixel.layoutPreset.v9',
   'kdPixel.layoutPreset.v8',
   'kdPixel.layoutPreset.v7',
@@ -225,6 +227,10 @@ class KDPanelViewProvider {
       const fileUri = vscode.Uri.file(path.join(distPath, relPath));
       return `${attr}="${webview.asWebviewUri(fileUri)}"`;
     });
+    const distBaseUri = webview.asWebviewUri(vscode.Uri.file(distPath)).toString();
+    const assetBaseUri = webview.asWebviewUri(vscode.Uri.file(path.join(distPath, 'assets'))).toString();
+    const runtimeBootstrap = `<script>window.__KD_DIST_BASE__=${JSON.stringify(distBaseUri)};window.__KD_ASSET_BASE__=${JSON.stringify(assetBaseUri)};</script>`;
+    html = html.replace(/<script\b/i, `${runtimeBootstrap}\n<script`);
 
     return html;
   }

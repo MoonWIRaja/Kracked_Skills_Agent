@@ -64,8 +64,8 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_MIN_VERSION = '0.6.3';
-const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v10';
+const PANEL_MIN_VERSION = '0.6.5';
+const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v12';
 const PANEL_MIN_WEBVIEW_JS_BYTES = 250000;
 
 function normalizeToolName(tool) {
@@ -194,6 +194,7 @@ function readPanelBundleInfo(panelDir) {
   const requiredFiles = [
     path.join(panelDir, 'dist', 'webview', 'index.html'),
     path.join(panelDir, 'dist', 'webview', 'assets', 'default-layout.json'),
+    path.join(panelDir, 'dist', 'webview', 'assets', 'office-sprite-pack.json'),
     path.join(panelDir, 'dist', 'webview', 'assets', 'walls.png'),
     path.join(panelDir, 'dist', 'webview', 'assets', 'characters', 'char_0.png'),
     path.join(panelDir, 'dist', 'webview', 'kd-web-shim.js'),
@@ -217,6 +218,8 @@ function applyPanelHotfixes(panelDest) {
   if (content.includes(PANEL_LAYOUT_STATE_KEY)) return { changed: false };
 
   const updated = content
+    .replace(/kdPixel\.layoutPreset\.v11/g, PANEL_LAYOUT_STATE_KEY)
+    .replace(/kdPixel\.layoutPreset\.v10/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.layoutPreset\.v9/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.layoutPreset\.v8/g, PANEL_LAYOUT_STATE_KEY)
     .replace(/kdPixel\.layoutPreset\.v7/g, PANEL_LAYOUT_STATE_KEY)

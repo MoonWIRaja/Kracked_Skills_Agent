@@ -4,9 +4,8 @@
   const POLL_INTERVAL_MS = 1200;
   const STATE_ENDPOINT = '/api/state';
   const LAYOUT_ENDPOINT = '/api/layout';
-  const DEFAULT_LAYOUT_PATH = './assets/default-layout.json';
   const SOUND_KEY = 'kdPixel.web.soundEnabled';
-  const LAYOUT_KEY = 'kdPixel.web.layout.v4';
+  const LAYOUT_KEY = 'kdPixel.web.layout.v5';
   const AGENT_ID_MAP_KEY = 'kdPixel.web.agentIdByKey';
   const NEXT_AGENT_ID_KEY = 'kdPixel.web.nextAgentId';
   const AGENT_SEATS_KEY = 'kdPixel.web.agentSeats';
@@ -17,6 +16,13 @@
   const hasNativeVscode = typeof window.acquireVsCodeApi === 'function';
   const nativeAcquire = hasNativeVscode ? window.acquireVsCodeApi.bind(window) : null;
   const nativeApi = hasNativeVscode ? nativeAcquire() : null;
+  const KD_DIST_BASE = typeof window.__KD_DIST_BASE__ === 'string' && window.__KD_DIST_BASE__.trim()
+    ? window.__KD_DIST_BASE__.trim()
+    : '.';
+  const KD_ASSET_BASE = typeof window.__KD_ASSET_BASE__ === 'string' && window.__KD_ASSET_BASE__.trim()
+    ? window.__KD_ASSET_BASE__.trim()
+    : joinBase(KD_DIST_BASE, 'assets');
+  const DEFAULT_LAYOUT_PATH = assetUrl('default-layout.json');
 
   let pollTimer = null;
   let initialized = false;
@@ -24,6 +30,16 @@
   let knownIds = new Set();
   let visualAssetsSent = false;
   const lastSignatureById = new Map();
+
+  function joinBase(base, relPath) {
+    const cleanBase = String(base || '').replace(/\/+$/, '');
+    const cleanRel = String(relPath || '').replace(/^\/+/, '');
+    return cleanRel ? `${cleanBase}/${cleanRel}` : cleanBase;
+  }
+
+  function assetUrl(relPath) {
+    return joinBase(KD_ASSET_BASE, relPath);
+  }
 
   const agentIdByKey = safeParseJson(readStorage(AGENT_ID_MAP_KEY), {});
   let nextAgentId = Number.parseInt(readStorage(NEXT_AGENT_ID_KEY) || '1', 10);
@@ -312,97 +328,19 @@
     }
   }
 
-  function floorCandidateScore(tile) {
-    // Prefer dense, textured 16x16 tiles. This avoids tiny sprite fragments.
-    return (tile.opaqueCount * 2) + (tile.uniqueColors * 5);
-  }
+  async function loadOfficeSpritePack() {
+    const pack = await fetchJson(assetUrl('office-sprite-pack.json'));
+    if (!pack || typeof pack !== 'object') return null;
 
-  function isLikelyFloor(tile) {
-    return tile.opaqueCount >= 180 && tile.uniqueColors >= 3;
-  }
+    const floorSprites = Array.isArray(pack.floorSprites) ? pack.floorSprites : [];
+    const wallSprites = Array.isArray(pack.wallSprites) ? pack.wallSprites : [];
+    const furniture = pack.furniture && typeof pack.furniture === 'object' ? pack.furniture : null;
+    const catalog = furniture && Array.isArray(furniture.catalog) ? furniture.catalog : [];
+    const sprites = furniture && furniture.sprites && typeof furniture.sprites === 'object'
+      ? furniture.sprites
+      : {};
 
-  async function loadFloorSprites() {
-    const candidatePaths = [
-      './assets/office/A2 Office Floors.png',
-      './assets/office/Office Tileset All 16x16 no shadow.png',
-    ];
-
-    for (const src of candidatePaths) {
-      try {
-        const image = await loadImage(src);
-        const { ctx } = makeCanvasFromImage(image);
-        const cols = Math.floor(image.width / 16);
-        const rows = Math.floor(image.height / 16);
-        const candidates = [];
-
-        for (let y = 0; y < rows; y += 1) {
-          for (let x = 0; x < cols; x += 1) {
-            const tile = imageToSprite(ctx, x * 16, y * 16, 16, 16);
-            if (!isLikelyFloor(tile)) continue;
-            candidates.push(tile);
-          }
-        }
-
-        candidates.sort((a, b) => floorCandidateScore(b) - floorCandidateScore(a));
-        const chosen = [];
-        const seen = new Set();
-        for (const tile of candidates) {
-          const key = JSON.stringify(tile.sprite.slice(0, 2));
-          if (seen.has(key)) continue;
-          seen.add(key);
-          chosen.push(tile.sprite);
-          if (chosen.length >= 6) break;
-        }
-
-        if (chosen.length >= 4) {
-          while (chosen.length < 6) chosen.push(chosen[chosen.length - 1]);
-          return chosen;
-        }
-      } catch {
-        // try next source
-      }
-    }
-
-    // Stable fallback patterns.
-    return [
-      Array.from({ length: 16 }, () => Array(16).fill('#6B4A2E')),
-      Array.from({ length: 16 }, () => Array(16).fill('#A8AFB7')),
-      Array.from({ length: 16 }, () => Array(16).fill('#6B8AA8')),
-      Array.from({ length: 16 }, () => Array(16).fill('#7D8F7C')),
-      Array.from({ length: 16 }, () => Array(16).fill('#9A8A74')),
-      Array.from({ length: 16 }, () => Array(16).fill('#556070')),
-    ];
-  }
-
-  async function loadWallSprites() {
-    const image = await loadImage('./assets/walls.png');
-    const { ctx } = makeCanvasFromImage(image);
-    const sprites = [];
-    for (let mask = 0; mask < 16; mask += 1) {
-      const sx = (mask % 4) * 16;
-      const sy = Math.floor(mask / 4) * 32;
-      sprites.push(imageToSprite(ctx, sx, sy, 16, 32).sprite);
-    }
-    return sprites;
-  }
-
-  async function loadCharacterSprites() {
-    const characters = [];
-    for (let i = 0; i < 6; i += 1) {
-      const image = await loadImage(`./assets/characters/char_${i}.png`);
-      const { ctx } = makeCanvasFromImage(image);
-      const directions = { down: [], up: [], right: [] };
-      const names = ['down', 'up', 'right'];
-      for (let row = 0; row < 3; row += 1) {
-        for (let frame = 0; frame < 7; frame += 1) {
-          const sx = frame * 16;
-          const sy = row * 32;
-          directions[names[row]].push(imageToSprite(ctx, sx, sy, 16, 32).sprite);
-        }
-      }
-      characters.push(directions);
-    }
-    return characters;
+    return { floorSprites, wallSprites, catalog, sprites };
   }
 
   function parseAssetNumbers(assetId) {
@@ -462,9 +400,9 @@
 
   async function buildFurnitureTilePool() {
     const sheetPaths = [
-      './assets/office/B-C-D-E Office 1 No Shadows.png',
-      './assets/office/B-C-D-E Office 2 No Shadows.png',
-      './assets/office/Office Tileset All 16x16 no shadow.png',
+      assetUrl('office/B-C-D-E Office 1 No Shadows.png'),
+      assetUrl('office/B-C-D-E Office 2 No Shadows.png'),
+      assetUrl('office/Office Tileset All 16x16 no shadow.png'),
     ];
 
     const pool = [];
@@ -528,73 +466,31 @@
   }
 
   async function loadFurnitureAssets() {
-    const layout = await fetchJson(DEFAULT_LAYOUT_PATH);
-    const idsFromLayout = layout && Array.isArray(layout.furniture)
-      ? [...new Set(layout.furniture
-        .map((item) => item && item.type)
-        .filter((value) => typeof value === 'string' && value.trim() !== ''))].sort((a, b) => a.localeCompare(b))
-      : [];
-
-    const tilePool = await buildFurnitureTilePool();
-    if (!tilePool || tilePool.length === 0) return null;
-
-    const catalog = [];
-    const sprites = {};
-    const usedIds = new Set();
-
-    for (const assetId of idsFromLayout) {
-      const sprite = pickSpriteForAsset(assetId, tilePool);
-      if (!sprite) continue;
-      const category = categoryForAsset(assetId);
-      const footprint = footprintForAsset(assetId);
-      sprites[assetId] = sprite;
-      catalog.push(buildCatalogEntry(assetId, category, footprint));
-      usedIds.add(assetId);
-    }
-
-    const extraCount = Math.min(160, tilePool.length);
-    for (let i = 0; i < extraCount; i += 1) {
-      const extraId = `ASSET_AUTO_${String(i).padStart(3, '0')}`;
-      if (usedIds.has(extraId)) continue;
-      const category = FURNITURE_CATEGORIES[i % FURNITURE_CATEGORIES.length];
-      sprites[extraId] = tilePool[i].sprite;
-      catalog.push(buildCatalogEntry(extraId, category, { width: 1, height: 1 }));
-    }
-
-    if (catalog.length === 0) return null;
-    return { catalog, sprites };
+    const pack = await loadOfficeSpritePack();
+    if (!pack) return null;
+    if (!Array.isArray(pack.catalog) || pack.catalog.length === 0) return null;
+    return { catalog: pack.catalog, sprites: pack.sprites || {} };
   }
 
   async function sendVisualAssets(force = false) {
     if (visualAssetsSent && !force) return;
     visualAssetsSent = true;
 
-    try {
-      const [wallSprites, characterSprites, floorSprites, furnitureAssets] = await Promise.all([
-        loadWallSprites().catch(() => null),
-        loadCharacterSprites().catch(() => null),
-        loadFloorSprites().catch(() => null),
-        loadFurnitureAssets().catch(() => null),
-      ]);
-
-      if (characterSprites && characterSprites.length > 0) {
-        dispatchToUi({ type: 'characterSpritesLoaded', characters: characterSprites });
+    const pack = await loadOfficeSpritePack().catch(() => null);
+    if (pack) {
+      if (Array.isArray(pack.wallSprites) && pack.wallSprites.length > 0) {
+        dispatchToUi({ type: 'wallTilesLoaded', sprites: pack.wallSprites });
       }
-      if (wallSprites && wallSprites.length > 0) {
-        dispatchToUi({ type: 'wallTilesLoaded', sprites: wallSprites });
+      if (Array.isArray(pack.floorSprites) && pack.floorSprites.length > 0) {
+        dispatchToUi({ type: 'floorTilesLoaded', sprites: pack.floorSprites });
       }
-      if (floorSprites && floorSprites.length > 0) {
-        dispatchToUi({ type: 'floorTilesLoaded', sprites: floorSprites });
-      }
-      if (furnitureAssets && furnitureAssets.catalog && furnitureAssets.catalog.length > 0) {
+      if (Array.isArray(pack.catalog) && pack.catalog.length > 0) {
         dispatchToUi({
           type: 'furnitureAssetsLoaded',
-          catalog: furnitureAssets.catalog,
-          sprites: furnitureAssets.sprites,
+          catalog: pack.catalog,
+          sprites: pack.sprites || {},
         });
       }
-    } catch {
-      // keep panel functional even when visual assets fail
     }
   }
 
@@ -649,7 +545,12 @@
   if (hasNativeVscode) {
     const proxiedApi = {
       postMessage(message) {
+        const isReadyMsg = message && typeof message === 'object' && message.type === 'webviewReady';
         handleIncomingMessage(message, true);
+        if (isReadyMsg) {
+          setTimeout(() => nativeApi.postMessage(message), 80);
+          return true;
+        }
         return nativeApi.postMessage(message);
       },
       setState(value) {

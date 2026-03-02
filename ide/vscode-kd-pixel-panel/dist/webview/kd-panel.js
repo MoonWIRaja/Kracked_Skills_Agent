@@ -55,7 +55,7 @@
   const TILE_WALL = 5;
   const TILE_OUTDOOR = 6;
   const TILE_WATER = 7;
-  const LAYOUT_STORAGE_KEY = 'kdPixel.customLayout.v2';
+  const LAYOUT_STORAGE_KEY = 'kdPixel.customLayout.v3';
 
   const WORLD = {
     cols: WORLD_COLS,
@@ -69,6 +69,8 @@
   const state = {
     zoom: 2.8,
     catalog: null,
+    sourceProfile: 'unknown',
+    stableTheme: false,
     pools: {
       floors: [],
       walls: [],
@@ -492,6 +494,14 @@
     return String(relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
   }
 
+  function encodePathForUrl(relPath) {
+    const normalized = normalizeRelPath(relPath);
+    return normalized
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+  }
+
   function normalizeRoleKey(raw) {
     return String(raw || '')
       .toLowerCase()
@@ -654,7 +664,7 @@
       return raw;
     }
 
-    const normalized = normalizeRelPath(raw);
+    const normalized = encodePathForUrl(raw);
     const base = String(DIST_BASE || '.').replace(/\/+$/, '');
     return `${base}/${normalized}`;
   }
@@ -881,16 +891,27 @@
     return ['decor', 'desk', 'chair', 'storage', 'tech'][index % 5];
   }
 
-  function buildSyntheticPropsFromCells(cells, limit = 140) {
+  function buildSyntheticPropsFromCells(cells, options = {}) {
+    const cap = Math.max(1, Number(options.limit || 140));
+    const minOpaque = Number.isFinite(options.minOpaque) ? Number(options.minOpaque) : 0.2;
+    const maxOpaque = Number.isFinite(options.maxOpaque) ? Number(options.maxOpaque) : 0.94;
+    const minEdge = Number.isFinite(options.minEdge) ? Number(options.minEdge) : 0.0;
+    const maxEdge = Number.isFinite(options.maxEdge) ? Number(options.maxEdge) : 0.96;
+    const categoryResolver = typeof options.categoryResolver === 'function'
+      ? options.categoryResolver
+      : ((cell, i) => syntheticCategoryForAtlas(cell.relPath, i));
+    const relPrefix = String(options.relPrefix || 'synthetic');
     const out = [];
-    const cap = Math.max(1, Number(limit || 140));
     let index = 0;
 
     for (const cell of cells || []) {
       if (!cell || !cell.image) continue;
       const stats = cell.stats || {};
-      if ((stats.opaqueRatio || 0) < 0.2) continue;
-      if ((stats.edgeOpaqueRatio || 0) > 0.96) continue;
+      const opaqueRatio = Number(stats.opaqueRatio || 0);
+      const edgeRatio = Number(stats.edgeOpaqueRatio || 0);
+      if (opaqueRatio < minOpaque || opaqueRatio > maxOpaque) continue;
+      if (edgeRatio < minEdge || edgeRatio > maxEdge) continue;
+      if (opaqueRatio > 0.88 && edgeRatio > 0.84) continue; // likely floor/wall tile, not furniture
 
       const canvas = document.createElement('canvas');
       canvas.width = TILE;
@@ -902,8 +923,8 @@
       cctx.drawImage(cell.image, cell.sx, cell.sy, TILE, TILE, 0, 0, TILE, TILE);
 
       const base = String(cell.relPath || '').split('/').pop().replace(/\.[a-z0-9]+$/i, '');
-      const category = syntheticCategoryForAtlas(cell.relPath, index);
-      const relPath = `synthetic/${category}/${base}-${cell.sx}-${cell.sy}.png`;
+      const category = String(categoryResolver(cell, index) || 'decor');
+      const relPath = `${relPrefix}/${category}/${base}-${cell.sx}-${cell.sy}.png`;
 
       out.push({
         relPath,
@@ -1211,12 +1232,14 @@
     const atlasUniverse = dedupePaths([...(catalog.tileAtlases || []), ...(catalog.objectAtlases || [])]);
     const sourceProfile = String((catalog && catalog.source_profile) || '').toLowerCase();
     const useDonargProfile = sourceProfile.includes('donarg') || atlasUniverse.some((rel) => /office tileset/i.test(rel));
+    state.sourceProfile = useDonargProfile ? 'donarg-office-v1' : (sourceProfile || 'legacy');
+    state.stableTheme = useDonargProfile;
 
     const floorAtlases = useDonargProfile
       ? filterAtlasPaths(atlasUniverse, {
-        include: ['office tileset all 16x16 no shadow', 'a2 office floors', 'a5 office floors', 'office tileset all 16x16'],
+        include: ['a2 office floors', 'a5 office floors'],
         exclude: ['office level', 'palette'],
-        limit: 6,
+        limit: 3,
       })
       : filterAtlasPaths(atlasUniverse, {
         include: ['walls_floor', 'floor', 'interior'],
@@ -1225,9 +1248,9 @@
       });
     const wallAtlases = useDonargProfile
       ? filterAtlasPaths(atlasUniverse, {
-        include: ['a4 office walls', 'a5 office floors', 'office tileset all 16x16 no shadow', 'wall'],
+        include: ['a4 office walls', 'a5 office floors'],
         exclude: ['office level', 'palette'],
-        limit: 5,
+        limit: 3,
       })
       : filterAtlasPaths(atlasUniverse, {
         include: ['walls_interior', 'wall', 'windows_doors'],
@@ -1273,13 +1296,13 @@
     const floors = await loadAtlasGroup(
       floorAtlases,
       useDonargProfile
-        ? { minOpaqueRatio: 0.78, minEdgeOpaqueRatio: 0.74, maxCells: 220 }
+        ? { minOpaqueRatio: 0.84, minEdgeOpaqueRatio: 0.82, maxCells: 160 }
         : { minOpaqueRatio: 0.86, minEdgeOpaqueRatio: 0.86, maxCells: 120 }
     );
     const walls = await loadAtlasGroup(
       wallAtlases,
       useDonargProfile
-        ? { minOpaqueRatio: 0.56, minEdgeOpaqueRatio: 0.6, maxCells: 180 }
+        ? { minOpaqueRatio: 0.68, minEdgeOpaqueRatio: 0.74, maxCells: 100 }
         : { minOpaqueRatio: 0.62, minEdgeOpaqueRatio: 0.74, maxCells: 110 }
     );
     const outdoor = await loadAtlasGroup(
@@ -1297,9 +1320,9 @@
 
     const decorAtlases = useDonargProfile
       ? filterAtlasPaths(atlasUniverse, {
-        include: ['b-c-d-e office 1 no shadows', 'b-c-d-e office 2 no shadows', 'b-c-d-e office 1', 'b-c-d-e office 2', 'office tileset all 16x16 no shadow'],
+        include: ['b-c-d-e office 1 no shadows', 'b-c-d-e office 2 no shadows', 'b-c-d-e office 1', 'b-c-d-e office 2'],
         exclude: ['with_shadow', 'idle_', 'walk_', 'run_', 'office level', 'palette'],
-        limit: 6,
+        limit: 4,
       })
       : filterAtlasPaths(atlasUniverse, {
         include: ['interior_objects', 'objects'],
@@ -1313,12 +1336,23 @@
         : { minOpaqueRatio: 0.72, minEdgeOpaqueRatio: 0.45, maxCells: 60 }
     );
 
+    const donargPropAtlases = useDonargProfile
+      ? filterAtlasPaths(atlasUniverse, {
+        include: ['b-c-d-e office 1 no shadows', 'b-c-d-e office 2 no shadows'],
+        exclude: ['with_shadow', 'idle_', 'walk_', 'run_', 'office level', 'palette'],
+        limit: 2,
+      })
+      : [];
+    const donargPropCells = useDonargProfile
+      ? await loadAtlasGroup(donargPropAtlases, { minOpaqueRatio: 0.06, minEdgeOpaqueRatio: 0.02, maxCells: 620 })
+      : [];
+
     state.pools = {
-      floors: floors.slice(0, useDonargProfile ? 220 : 120),
-      walls: walls.slice(0, useDonargProfile ? 180 : 110),
+      floors: floors.slice(0, useDonargProfile ? 24 : 120),
+      walls: walls.slice(0, useDonargProfile ? 12 : 110),
       outdoor: outdoor.slice(0, 120),
       water: water.slice(0, 80),
-      decor: decor.slice(0, useDonargProfile ? 220 : 60),
+      decor: decor.slice(0, useDonargProfile ? 48 : 60),
     };
 
     const propPaths = selectProps(catalog).slice(0, 30);
@@ -1341,7 +1375,22 @@
       })
     );
 
-    const syntheticProps = buildSyntheticPropsFromCells(decor, useDonargProfile ? 180 : 80);
+    const syntheticProps = useDonargProfile
+      ? buildSyntheticPropsFromCells(donargPropCells, {
+        limit: 110,
+        minOpaque: 0.08,
+        maxOpaque: 0.86,
+        minEdge: 0.02,
+        maxEdge: 0.72,
+        relPrefix: 'synthetic/donarg',
+      })
+      : buildSyntheticPropsFromCells(decor, {
+        limit: 80,
+        minOpaque: 0.2,
+        maxOpaque: 0.94,
+        minEdge: 0,
+        maxEdge: 0.96,
+      });
     const mergedProps = [...propImages.filter(Boolean), ...syntheticProps];
     const dedupedProps = [];
     const seenPropKeys = new Set();
@@ -1383,6 +1432,21 @@
     state.characterSheets = charSheets.filter(Boolean);
     state.roleSprites = await buildRoleSpriteCatalog(catalog);
     buildThemeTiles();
+    if (useDonargProfile) {
+      const main = state.pools.floors.slice(0, 8);
+      const meeting = state.pools.floors.slice(8, 14);
+      const ops = state.pools.floors.slice(14, 19);
+      const lounge = state.pools.floors.slice(19, 24);
+      state.themeTiles.main = main.length ? main : state.pools.floors;
+      state.themeTiles.meeting = meeting.length ? meeting : state.themeTiles.main;
+      state.themeTiles.ops = ops.length ? ops : state.themeTiles.main;
+      state.themeTiles.lounge = lounge.length ? lounge : state.themeTiles.main;
+      state.themeTiles.wall = state.pools.walls.slice(0, 6).length
+        ? state.pools.walls.slice(0, 6)
+        : state.themeTiles.main;
+      state.themeTiles.outdoor = [];
+      state.themeTiles.water = [];
+    }
     const themedTileCount = Object.values(state.themeTiles)
       .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
     if (themedTileCount < 12) {
@@ -1608,7 +1672,18 @@
     const r3 = tileRand(x, y, 2);
 
     function drawFromPool(pool, seed = 0) {
-      const cell = pickTileVariant(pool, x, y, seed);
+      let cell = null;
+      if (state.stableTheme) {
+        const baseIndex = hashString(`base:${seed}`) % Math.max(1, pool.length || 1);
+        const baseCell = (Array.isArray(pool) && pool.length > 0) ? pool[baseIndex] : null;
+        if (baseCell && tileRand(x, y, seed + 91) <= 0.11 && pool.length > 1) {
+          cell = pickTileVariant(pool, x, y, seed + 37) || baseCell;
+        } else {
+          cell = baseCell;
+        }
+      } else {
+        cell = pickTileVariant(pool, x, y, seed);
+      }
       if (!cell) return false;
       ctx.drawImage(cell.image, cell.sx, cell.sy, cell.sw, cell.sh, px, py, T, T);
       return true;
@@ -2060,6 +2135,9 @@
     }
 
     state.catalog = catalog;
+    if (catalog && catalog.source_profile) {
+      pushEvent('catalog', `profile=${catalog.source_profile}`);
+    }
 
     await buildAssetPools(catalog);
     assignPropsToWorld();

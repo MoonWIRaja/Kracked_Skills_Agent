@@ -64,8 +64,8 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_MIN_VERSION = '0.5.0';
-const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v6';
+const PANEL_MIN_VERSION = '0.5.1';
+const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v7';
 const PANEL_MIN_WEBVIEW_JS_BYTES = 25000;
 const PANEL_SOURCE_ZIP_NAME = 'Office Tileset (Donarg).zip';
 const PANEL_SOURCE_DIR_NAMES = ['Office Tileset', 'Office-Tileset', 'assets', 'Assets'];

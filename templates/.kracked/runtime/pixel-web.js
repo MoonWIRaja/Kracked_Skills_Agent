@@ -351,7 +351,12 @@ function injectWebPlaceholders(htmlText) {
 
 function safeStaticPath(rootDir, requestPath) {
   const clean = String(requestPath || '/').split('?')[0].split('#')[0];
-  const rel = clean === '/' ? 'index.html' : clean.replace(/^\/+/, '');
+  let rel = clean === '/' ? 'index.html' : clean.replace(/^\/+/, '');
+  try {
+    rel = decodeURIComponent(rel);
+  } catch {
+    // keep raw path if decode fails
+  }
   const resolvedRoot = path.resolve(rootDir);
   const resolvedPath = path.resolve(resolvedRoot, rel);
 
@@ -385,7 +390,26 @@ function htmlFallback() {
 
 function ensurePanelAssets(panelToolDir, workspaceRoot) {
   const catalogPath = path.join(panelToolDir, 'dist', 'webview', 'kd-asset-pack', 'catalog.json');
-  if (fs.existsSync(catalogPath)) return { ok: true, built: false };
+  let hasUsableBundle = false;
+  if (fs.existsSync(catalogPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+      const images = Array.isArray(parsed && parsed.images) ? parsed.images : [];
+      const firstImage = images[0] ? path.join(panelToolDir, 'dist', 'webview', images[0]) : null;
+      if (firstImage && fs.existsSync(firstImage)) {
+        hasUsableBundle = true;
+      } else {
+        const extractedDir = path.join(panelToolDir, 'dist', 'webview', 'kd-asset-pack', 'extracted');
+        if (fs.existsSync(extractedDir)) {
+          const files = fs.readdirSync(extractedDir, { withFileTypes: true });
+          hasUsableBundle = files.some((entry) => entry.isDirectory());
+        }
+      }
+    } catch {
+      hasUsableBundle = false;
+    }
+  }
+  if (hasUsableBundle) return { ok: true, built: false };
 
   const builder = path.join(panelToolDir, 'build-assets-from-zip.js');
   if (!fs.existsSync(builder)) {

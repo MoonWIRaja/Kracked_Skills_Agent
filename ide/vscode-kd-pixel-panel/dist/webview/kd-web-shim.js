@@ -6,7 +6,7 @@
   const LAYOUT_ENDPOINT = '/api/layout';
   const DEFAULT_LAYOUT_PATH = './assets/default-layout.json';
   const SOUND_KEY = 'kdPixel.web.soundEnabled';
-  const LAYOUT_KEY = 'kdPixel.web.layout.v2';
+  const LAYOUT_KEY = 'kdPixel.web.layout.v3';
   const AGENT_ID_MAP_KEY = 'kdPixel.web.agentIdByKey';
   const NEXT_AGENT_ID_KEY = 'kdPixel.web.nextAgentId';
   const AGENT_SEATS_KEY = 'kdPixel.web.agentSeats';
@@ -248,6 +248,7 @@
     const data = ctx.getImageData(sx, sy, width, height).data;
     const sprite = [];
     let opaqueCount = 0;
+    const colorSet = new Set();
     for (let y = 0; y < height; y += 1) {
       const row = [];
       for (let x = 0; x < width; x += 1) {
@@ -260,12 +261,14 @@
           row.push('');
         } else {
           opaqueCount += 1;
-          row.push(rgbaToHex(r, g, b));
+          const hex = rgbaToHex(r, g, b);
+          row.push(hex);
+          if (colorSet.size < 48) colorSet.add(hex);
         }
       }
       sprite.push(row);
     }
-    return { sprite, opaqueCount };
+    return { sprite, opaqueCount, uniqueColors: colorSet.size };
   }
 
   function makeCanvasFromImage(image) {
@@ -278,13 +281,95 @@
     return { canvas, ctx };
   }
 
-  async function loadImage(src) {
+  function loadImageElement(src) {
     return new Promise((resolve, reject) => {
       const image = new Image();
+      image.crossOrigin = 'anonymous';
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error(`failed to load image: ${src}`));
       image.src = src;
     });
+  }
+
+  async function loadImage(src) {
+    try {
+      const response = await window.fetch(src, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`fetch ${src} -> ${response.status}`);
+      const blob = await response.blob();
+      if (typeof window.createImageBitmap === 'function') {
+        return await window.createImageBitmap(blob);
+      }
+      const blobUrl = URL.createObjectURL(blob);
+      try {
+        return await loadImageElement(blobUrl);
+      } finally {
+        URL.revokeObjectURL(blobUrl);
+      }
+    } catch {
+      return loadImageElement(src);
+    }
+  }
+
+  function floorCandidateScore(tile) {
+    // Prefer dense, textured 16x16 tiles. This avoids tiny sprite fragments.
+    return (tile.opaqueCount * 2) + (tile.uniqueColors * 5);
+  }
+
+  function isLikelyFloor(tile) {
+    return tile.opaqueCount >= 180 && tile.uniqueColors >= 3;
+  }
+
+  async function loadFloorSprites() {
+    const candidatePaths = [
+      './assets/office/A2 Office Floors.png',
+      './assets/office/Office Tileset All 16x16 no shadow.png',
+    ];
+
+    for (const src of candidatePaths) {
+      try {
+        const image = await loadImage(src);
+        const { ctx } = makeCanvasFromImage(image);
+        const cols = Math.floor(image.width / 16);
+        const rows = Math.floor(image.height / 16);
+        const candidates = [];
+
+        for (let y = 0; y < rows; y += 1) {
+          for (let x = 0; x < cols; x += 1) {
+            const tile = imageToSprite(ctx, x * 16, y * 16, 16, 16);
+            if (!isLikelyFloor(tile)) continue;
+            candidates.push(tile);
+          }
+        }
+
+        candidates.sort((a, b) => floorCandidateScore(b) - floorCandidateScore(a));
+        const chosen = [];
+        const seen = new Set();
+        for (const tile of candidates) {
+          const key = JSON.stringify(tile.sprite.slice(0, 2));
+          if (seen.has(key)) continue;
+          seen.add(key);
+          chosen.push(tile.sprite);
+          if (chosen.length >= 6) break;
+        }
+
+        if (chosen.length >= 4) {
+          while (chosen.length < 6) chosen.push(chosen[chosen.length - 1]);
+          return chosen;
+        }
+      } catch {
+        // try next source
+      }
+    }
+
+    // Stable fallback patterns.
+    return [
+      Array.from({ length: 16 }, () => Array(16).fill('#6B4A2E')),
+      Array.from({ length: 16 }, () => Array(16).fill('#A8AFB7')),
+      Array.from({ length: 16 }, () => Array(16).fill('#6B8AA8')),
+      Array.from({ length: 16 }, () => Array(16).fill('#7D8F7C')),
+      Array.from({ length: 16 }, () => Array(16).fill('#9A8A74')),
+      Array.from({ length: 16 }, () => Array(16).fill('#556070')),
+    ];
   }
 
   async function loadWallSprites() {
@@ -318,112 +403,15 @@
     return characters;
   }
 
-  async function loadFloorSprites() {
-    const candidatePaths = [
-      './assets/office/Office Tileset All 16x16 no shadow.png',
-      './assets/office/A2 Office Floors.png',
-    ];
-
-    for (const src of candidatePaths) {
-      try {
-        const image = await loadImage(src);
-        const { ctx } = makeCanvasFromImage(image);
-        const sprites = [];
-        const cols = Math.floor(image.width / 16);
-        const rows = Math.floor(image.height / 16);
-        for (let y = 0; y < rows && sprites.length < 7; y += 1) {
-          for (let x = 0; x < cols && sprites.length < 7; x += 1) {
-            const tile = imageToSprite(ctx, x * 16, y * 16, 16, 16);
-            if (tile.opaqueCount > 24) {
-              sprites.push(tile.sprite);
-            }
-          }
-        }
-        if (sprites.length === 7) {
-          return sprites;
-        }
-      } catch {
-        // try next source
-      }
-    }
-    return null;
-  }
-
-  function buildDefaultCatalogEntry(assetId) {
-    return {
-      id: assetId,
-      name: assetId,
-      label: assetId.replace(/_/g, ' '),
-      category: 'decor',
-      file: `generated/${assetId}.png`,
-      width: 16,
-      height: 16,
-      footprintW: 1,
-      footprintH: 1,
-      isDesk: false,
-      canPlaceOnWalls: false,
-    };
-  }
-
-  async function loadFurnitureAssets() {
-    const layout = await fetchJson(DEFAULT_LAYOUT_PATH);
-    if (!layout || !Array.isArray(layout.furniture)) return null;
-
-    const ids = [...new Set(layout.furniture
-      .map((item) => item && item.type)
-      .filter((value) => typeof value === 'string' && value.trim() !== ''))]
-      .sort((a, b) => a.localeCompare(b));
-    if (ids.length === 0) return null;
-
-    const sheetPaths = [
-      './assets/office/B-C-D-E Office 1 No Shadows.png',
-      './assets/office/B-C-D-E Office 2 No Shadows.png',
-      './assets/office/Office Tileset All 16x16 no shadow.png',
-    ];
-
-    const tiles = [];
-    for (const src of sheetPaths) {
-      try {
-        const image = await loadImage(src);
-        const { ctx } = makeCanvasFromImage(image);
-        const cols = Math.floor(image.width / 16);
-        const rows = Math.floor(image.height / 16);
-        for (let y = 0; y < rows; y += 1) {
-          for (let x = 0; x < cols; x += 1) {
-            const tile = imageToSprite(ctx, x * 16, y * 16, 16, 16);
-            if (tile.opaqueCount > 24) {
-              tiles.push(tile.sprite);
-            }
-          }
-        }
-      } catch {
-        // try next source
-      }
-    }
-
-    if (tiles.length === 0) return null;
-
-    const catalog = [];
-    const sprites = {};
-    for (let i = 0; i < ids.length; i += 1) {
-      const assetId = ids[i];
-      catalog.push(buildDefaultCatalogEntry(assetId));
-      sprites[assetId] = tiles[i % tiles.length];
-    }
-
-    return { catalog, sprites };
-  }
-
-  async function sendVisualAssets() {
-    if (visualAssetsSent) return;
+  async function sendVisualAssets(force = false) {
+    if (visualAssetsSent && !force) return;
     visualAssetsSent = true;
 
     try {
-      const [wallSprites, characterSprites, floorSprites, furnitureAssets] = await Promise.all([
+      const [wallSprites, characterSprites, floorSprites] = await Promise.all([
         loadWallSprites().catch(() => null),
         loadCharacterSprites().catch(() => null),
         loadFloorSprites().catch(() => null),
-        loadFurnitureAssets().catch(() => null),
       ]);
 
       if (characterSprites && characterSprites.length > 0) {
@@ -435,23 +423,22 @@
       if (floorSprites && floorSprites.length > 0) {
         dispatchToUi({ type: 'floorTilesLoaded', sprites: floorSprites });
       }
-      if (furnitureAssets && furnitureAssets.catalog.length > 0) {
-        dispatchToUi({
-          type: 'furnitureAssetsLoaded',
-          catalog: furnitureAssets.catalog,
-          sprites: furnitureAssets.sprites,
-        });
-      }
     } catch {
-      // keep panel functional even when some assets fail
+      // keep panel functional even when visual assets fail
     }
+  }
+
+  function triggerVisualAssetsSync() {
+    // Immediate send plus delayed resend to avoid race with UI listeners.
+    setTimeout(() => sendVisualAssets(false), 0);
+    setTimeout(() => sendVisualAssets(true), 900);
   }
 
   function handleIncomingMessage(message, fromNativeBridge = false) {
     if (!message || typeof message !== 'object') return;
 
     if (message.type === 'webviewReady') {
-      sendVisualAssets();
+      triggerVisualAssetsSync();
 
       if (hasNativeVscode && fromNativeBridge) {
         return;

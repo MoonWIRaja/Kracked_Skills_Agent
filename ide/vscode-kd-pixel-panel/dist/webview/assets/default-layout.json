@@ -2386,85 +2386,85 @@
   "furniture": [
     {
       "uid": "f-1770720603403-9vfr",
-      "type": "ASSET_40",
+      "type": "desk",
       "col": 11,
       "row": 10
     },
     {
       "uid": "f-1770720612017-f2f0",
-      "type": "ASSET_44",
+      "type": "pc",
       "col": 16,
       "row": 11
     },
     {
       "uid": "f-1770738908507-t1xd",
-      "type": "ASSET_42",
+      "type": "plant",
       "col": 13,
       "row": 10
     },
     {
       "uid": "f-1770738932007-u7ju",
-      "type": "ASSET_61",
+      "type": "cooler",
       "col": 11,
       "row": 16
     },
     {
       "uid": "f-1770825889942-ft1f",
-      "type": "ASSET_49",
+      "type": "lamp",
       "col": 8,
       "row": 18
     },
     {
       "uid": "f-1770829214421-uu44",
-      "type": "ASSET_41_0_1",
+      "type": "chair",
       "col": 19,
       "row": 10
     },
     {
       "uid": "f-1770829235442-8cvj",
-      "type": "ASSET_7",
+      "type": "pc",
       "col": 17,
       "row": 10
     },
     {
       "uid": "f-1770831748000-ksmj",
-      "type": "ASSET_18",
+      "type": "plant",
       "col": 1,
       "row": 10
     },
     {
       "uid": "f-1770831767041-zaxr",
-      "type": "ASSET_18",
+      "type": "plant",
       "col": 7,
       "row": 10
     },
     {
       "uid": "f-1770831768596-kx8j",
-      "type": "ASSET_17",
+      "type": "cooler",
       "col": 3,
       "row": 10
     },
     {
       "uid": "f-1770831788343-fbxl",
-      "type": "ASSET_143",
+      "type": "bookshelf",
       "col": 1,
       "row": 11
     },
     {
       "uid": "f-1770831791526-md8k",
-      "type": "ASSET_142",
+      "type": "chair",
       "col": 1,
       "row": 19
     },
     {
       "uid": "f-1770831898859-bfdn",
-      "type": "ASSET_83",
+      "type": "desk",
       "col": 14,
       "row": 10
     },
     {
       "uid": "f-1771117638479-ddcx",
-      "type": "ASSET_84",
+      "type": "plant",
       "col": 15,
       "row": 9,
       "color": {
@@ -2476,7 +2476,7 @@
     },
     {
       "uid": "f-1771117697507-gcxt",
-      "type": "ASSET_101",
+      "type": "whiteboard",
       "col": 15,
       "row": 14,
       "color": {
@@ -2488,19 +2488,19 @@
     },
     {
       "uid": "f-1771119388928-dbrf",
-      "type": "ASSET_NEW_110",
+      "type": "lamp",
       "col": 14,
       "row": 17
     },
     {
       "uid": "f-1771119393112-vl9b",
-      "type": "ASSET_NEW_111",
+      "type": "chair",
       "col": 17,
       "row": 17
     },
     {
       "uid": "f-1771253485902-4ipo",
-      "type": "ASSET_NEW_106",
+      "type": "pc",
       "col": 2,
       "row": 14,
       "color": {
@@ -2512,7 +2512,7 @@
     },
     {
       "uid": "f-1771253487232-60st",
-      "type": "ASSET_NEW_106",
+      "type": "pc",
       "col": 7,
       "row": 14,
       "color": {
@@ -2524,19 +2524,19 @@
     },
     {
       "uid": "f-1771253497231-n2au",
-      "type": "ASSET_49",
+      "type": "lamp",
       "col": 3,
       "row": 16
     },
     {
       "uid": "f-1771253498608-apjl",
-      "type": "ASSET_49",
+      "type": "lamp",
       "col": 8,
       "row": 16
     },
     {
       "uid": "f-1771253522193-5zaf",
-      "type": "ASSET_NEW_106",
+      "type": "pc",
       "col": 7,
       "row": 18,
       "color": {
@@ -2548,13 +2548,13 @@
     },
     {
       "uid": "f-1771253587796-nwgi",
-      "type": "ASSET_49",
+      "type": "lamp",
       "col": 3,
       "row": 18
     },
     {
       "uid": "f-1771253595155-yets",
-      "type": "ASSET_NEW_106",
+      "type": "pc",
       "col": 2,
       "row": 18,
       "color": {
@@ -2566,79 +2566,79 @@
     },
     {
       "uid": "f-1771254122890-desz",
-      "type": "ASSET_142",
+      "type": "chair",
       "col": 10,
       "row": 19
     },
     {
       "uid": "f-1771254147816-bpkr",
-      "type": "ASSET_140",
+      "type": "plant",
       "col": 14,
       "row": 15
     },
     {
       "uid": "f-1771254151704-exrz",
-      "type": "ASSET_141",
+      "type": "bookshelf",
       "col": 17,
       "row": 15
     },
     {
       "uid": "f-1771273583560-z9r1",
-      "type": "ASSET_NEW_112",
+      "type": "lamp",
       "col": 15,
       "row": 17
     },
     {
       "uid": "f-1771273618430-t3u3",
-      "type": "ASSET_18",
+      "type": "plant",
       "col": 18,
       "row": 15
     },
     {
       "uid": "f-1771273619213-ylzf",
-      "type": "ASSET_18",
+      "type": "plant",
       "col": 12,
       "row": 15
     },
     {
       "uid": "f-1771275688296-pyz3",
-      "type": "ASSET_109",
+      "type": "chair",
       "col": 8,
       "row": 18
     },
     {
       "uid": "f-1771275690326-y60x",
-      "type": "ASSET_99",
+      "type": "pc",
       "col": 5,
       "row": 3
     },
     {
       "uid": "f-1771275699466-nwdh",
-      "type": "ASSET_109",
+      "type": "chair",
       "col": 3,
       "row": 18
     },
     {
       "uid": "f-1771275984894-29h8",
-      "type": "ASSET_51",
+      "type": "desk",
       "col": 6,
       "row": 4
     },
     {
       "uid": "f-1771275987306-bts7",
-      "type": "ASSET_51",
+      "type": "desk",
       "col": 16,
       "row": 17
     },
     {
       "uid": "f-1771277148633-u8j9",
-      "type": "ASSET_18",
+      "type": "plant",
       "col": 9,
       "row": 10
     },
     {
       "uid": "f-1771277212373-enh1",
-      "type": "ASSET_27_A",
+      "type": "cooler",
       "col": 5,
       "row": 2,
       "color": {
@@ -2650,7 +2650,7 @@
     },
     {
       "uid": "f-1771277253664-6618",
-      "type": "ASSET_34",
+      "type": "lamp",
       "col": 7,
       "row": 3,
       "color": {
@@ -2662,7 +2662,7 @@
     },
     {
       "uid": "f-1771277346180-prsv",
-      "type": "ASSET_34",
+      "type": "lamp",
       "col": 7,
       "row": 4,
       "color": {
@@ -2674,7 +2674,7 @@
     },
     {
       "uid": "f-1771277346584-y3x4",
-      "type": "ASSET_34",
+      "type": "lamp",
       "col": 7,
       "row": 5,
       "color": {
@@ -2686,7 +2686,7 @@
     },
     {
       "uid": "f-1771277358914-5w7p",
-      "type": "ASSET_33",
+      "type": "chair",
       "col": 4,
       "row": 5,
       "color": {
@@ -2698,7 +2698,7 @@
     },
     {
       "uid": "f-1771277359246-bk4b",
-      "type": "ASSET_33",
+      "type": "chair",
       "col": 4,
       "row": 4,
       "color": {
@@ -2710,7 +2710,7 @@
     },
     {
       "uid": "f-1771277359490-pqu5",
-      "type": "ASSET_33",
+      "type": "chair",
       "col": 4,
       "row": 3,
       "color": {
@@ -2722,79 +2722,79 @@
     },
     {
       "uid": "f-1771277556757-gadp",
-      "type": "ASSET_102",
+      "type": "whiteboard",
       "col": 5,
       "row": 0
     },
     {
       "uid": "f-1771277574471-hcv0",
-      "type": "ASSET_142",
+      "type": "chair",
       "col": 3,
       "row": 1
     },
     {
       "uid": "f-1771277575299-mfxh",
-      "type": "ASSET_142",
+      "type": "chair",
       "col": 8,
       "row": 1
     },
     {
       "uid": "f-1771277802319-1joi",
-      "type": "ASSET_140",
+      "type": "plant",
       "col": 19,
       "row": 19
     },
     {
       "uid": "f-1771277804247-jvcl",
-      "type": "ASSET_141",
+      "type": "bookshelf",
       "col": 12,
       "row": 19
     },
     {
       "uid": "f-1771279067027-ia1a",
-      "type": "ASSET_99",
+      "type": "pc",
       "col": 15,
       "row": 17
     },
     {
       "uid": "f-1771279925079-5ts8",
-      "type": "ASSET_44",
+      "type": "pc",
       "col": 1,
       "row": 19
     },
     {
       "uid": "f-1771280121112-6ffk",
-      "type": "ASSET_72",
+      "type": "bookshelf",
       "col": 6,
       "row": 3
     },
     {
       "uid": "f-1771280128756-ylw9",
-      "type": "ASSET_100",
+      "type": "cooler",
       "col": 2,
       "row": 14
     },
     {
       "uid": "f-1771280255329-3x6d",
-      "type": "ASSET_139",
+      "type": "lamp",
       "col": 2,
       "row": 11
     },
     {
       "uid": "f-1771282426463-of9k",
-      "type": "ASSET_90",
+      "type": "chair",
       "col": 8,
       "row": 14
     },
     {
       "uid": "f-1771282455174-4ohy",
-      "type": "ASSET_90",
+      "type": "chair",
       "col": 3,
       "row": 14
     },
     {
       "uid": "f-1771282481279-lthm",
-      "type": "ASSET_123",
+      "type": "pc",
       "col": 2,
       "row": 19
     }

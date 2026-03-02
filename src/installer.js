@@ -64,7 +64,7 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_MIN_VERSION = '0.6.0';
+const PANEL_MIN_VERSION = '0.6.1';
 const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v8';
 const PANEL_MIN_WEBVIEW_JS_BYTES = 250000;
 

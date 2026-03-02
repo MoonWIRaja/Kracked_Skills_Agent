@@ -1,13 +1,15 @@
 ﻿const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const MAX_EVENTS = 600;
 const VIEW_ID = 'kdPixel.panelView';
-const LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v5';
-const LEGACY_LAYOUT_STATE_KEYS = ['kdPixel.officeLayout.v4', 'kdPixel.officeLayout.v3', 'kdPixel.officeLayout.v2'];
-const LAYOUT_BUNDLE_SIG_KEY = 'kdPixel.layoutBundleSig';
+const LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v6';
+const LEGACY_LAYOUT_STATE_KEYS = [
+  'kdPixel.officeLayout.v4',
+  'kdPixel.officeLayout.v3',
+  'kdPixel.officeLayout.v2',
+];
 const AGENT_ID_MAP_KEY = 'kdPixel.agentIdByKey';
 const NEXT_AGENT_ID_KEY = 'kdPixel.nextAgentNumericId';
 const AGENT_SEATS_KEY = 'kdPixel.agentSeats';
@@ -200,7 +202,10 @@ class KDPanelViewProvider {
       });
     }
 
-    webview.postMessage({ type: 'layoutLoaded', layout: this.getLayout() });
+    const layout = this.getLayout();
+    if (layout) {
+      webview.postMessage({ type: 'layoutLoaded', layout });
+    }
   }
 
   getWebviewHtml() {
@@ -252,17 +257,19 @@ class KDPanelViewProvider {
   getLayout() {
     const saved = this.context.workspaceState.get(LAYOUT_STATE_KEY);
     if (isValidLayout(saved)) return saved;
-    return loadBundledDefaultLayout(this.context.extensionPath);
+    const bundled = loadBundledDefaultLayout(this.context.extensionPath);
+    if (isValidLayout(bundled)) return bundled;
+    return null;
   }
 
   async resetLayout(showToast = false) {
     const layout = loadBundledDefaultLayout(this.context.extensionPath);
-    await this.context.workspaceState.update(LAYOUT_STATE_KEY, layout);
+    await this.context.workspaceState.update(LAYOUT_STATE_KEY, layout || undefined);
     if (showToast) {
       vscode.window.showInformationMessage('KD Pixel office layout has been reset.');
     }
     if (this.view && this.ready) {
-      this.view.webview.postMessage({ type: 'layoutLoaded', layout });
+      this.view.webview.postMessage({ type: 'layoutLoaded', layout: layout || null });
     }
     this.refresh();
   }
@@ -442,22 +449,22 @@ class KDPanelViewProvider {
 
   async migrateLayoutStateIfNeeded() {
     const current = this.context.workspaceState.get(LAYOUT_STATE_KEY);
-    const bundleSig = getBundledLayoutSignature(this.context.extensionPath);
-    const savedSig = this.context.workspaceState.get(LAYOUT_BUNDLE_SIG_KEY);
-    const bundledLayout = loadBundledDefaultLayout(this.context.extensionPath);
-    const bundledFingerprint = getLayoutFingerprint(bundledLayout);
-    const currentFingerprint = getLayoutFingerprint(current);
-    const currentFurnitureCount = countLayoutFurniture(current);
-    const needsReset = !isValidLayout(current)
-      || !savedSig
-      || savedSig !== bundleSig
-      || currentFurnitureCount < 20
-      || currentFingerprint !== bundledFingerprint;
+    if (!isValidLayout(current)) {
+      let migrated = null;
+      for (const key of LEGACY_LAYOUT_STATE_KEYS) {
+        const legacy = this.context.workspaceState.get(key);
+        if (isValidLayout(legacy)) {
+          migrated = legacy;
+          break;
+        }
+      }
 
-    if (needsReset) {
-      await this.context.workspaceState.update(LAYOUT_STATE_KEY, bundledLayout);
+      if (migrated) {
+        await this.context.workspaceState.update(LAYOUT_STATE_KEY, migrated);
+      } else if (current !== undefined) {
+        await this.context.workspaceState.update(LAYOUT_STATE_KEY, undefined);
+      }
     }
-    await this.context.workspaceState.update(LAYOUT_BUNDLE_SIG_KEY, bundleSig);
 
     for (const key of LEGACY_LAYOUT_STATE_KEYS) {
       const legacy = this.context.workspaceState.get(key);
@@ -474,16 +481,15 @@ class KDPanelViewProvider {
 }
 
 function loadBundledDefaultLayout(extensionPath) {
-  const cols = 52;
-  const rows = 32;
-  const tiles = new Array(cols * rows).fill('floor');
-  return {
-    version: 1,
-    cols,
-    rows,
-    tiles,
-    furniture: [],
-  };
+  const layoutPath = path.join(extensionPath, 'dist', 'webview', 'kd-default-layout.json');
+  if (!fs.existsSync(layoutPath)) return null;
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
+    return isValidLayout(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function isValidLayout(layout) {
@@ -496,46 +502,6 @@ function isValidLayout(layout) {
   if (!tiles || !furniture) return false;
   if (tiles.length !== cols * rows) return false;
   return true;
-}
-
-function countLayoutFurniture(layout) {
-  if (!layout || typeof layout !== 'object') return 0;
-  const furniture = Array.isArray(layout.furniture) ? layout.furniture : [];
-  return furniture.length;
-}
-
-function getLayoutFingerprint(layout) {
-  if (!isValidLayout(layout)) return 'invalid-layout';
-  const normalizedFurniture = (layout.furniture || []).map((item) => ({
-    type: item && item.type ? String(item.type) : '',
-    col: Number(item && item.col),
-    row: Number(item && item.row),
-    state: item && item.state ? String(item.state) : '',
-    rotation: Number(item && item.rotation || 0),
-    variant: item && item.variant ? String(item.variant) : '',
-    color: item && item.color && typeof item.color === 'object'
-      ? {
-        r: Number(item.color.r),
-        g: Number(item.color.g),
-        b: Number(item.color.b),
-      }
-      : null,
-  }));
-
-  const payload = JSON.stringify({
-    version: Number(layout.version || 1),
-    cols: Number(layout.cols),
-    rows: Number(layout.rows),
-    tiles: Array.isArray(layout.tiles) ? layout.tiles : [],
-    tileColors: Array.isArray(layout.tileColors) ? layout.tileColors : [],
-    furniture: normalizedFurniture,
-  });
-
-  return crypto.createHash('sha1').update(payload).digest('hex').slice(0, 16);
-}
-
-function getBundledLayoutSignature(extensionPath) {
-  return 'kd-rpg-world-layout-v1';
 }
 
 function readEvents(eventsPath) {

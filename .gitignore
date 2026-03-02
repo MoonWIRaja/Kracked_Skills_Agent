@@ -10,6 +10,7 @@ ide/vscode-kd-pixel-panel/*.vsix
 .env
 .env.local
 Assets.zip
+/Office Tileset (Donarg).zip
 .DS_Store
 Thumbs.db
 *.log

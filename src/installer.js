@@ -64,9 +64,11 @@ const RANDOM_NAME_POOL = [
   'Haziq',
 ];
 
-const PANEL_MIN_VERSION = '0.4.3';
-const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v5';
+const PANEL_MIN_VERSION = '0.5.0';
+const PANEL_LAYOUT_STATE_KEY = 'kdPixel.layoutPreset.v6';
 const PANEL_MIN_WEBVIEW_JS_BYTES = 25000;
+const PANEL_SOURCE_ZIP_NAME = 'Office Tileset (Donarg).zip';
+const PANEL_SOURCE_DIR_NAMES = ['Office Tileset', 'Office-Tileset', 'assets', 'Assets'];
 
 function normalizeToolName(tool) {
   const value = String(tool || '').trim().toLowerCase();
@@ -149,7 +151,7 @@ function readPanelBundleInfo(panelDir) {
     hasExpectedLayoutStateKey: false,
     hasFreshWebviewBundle: false,
     hasAssetBuilder: false,
-    hasAssetParts: false,
+    hasSourceAsset: false,
     hasCoreWebviewFiles: false,
     fresh: false,
   };
@@ -180,28 +182,26 @@ function readPanelBundleInfo(panelDir) {
   }
 
   info.hasAssetBuilder = fs.existsSync(path.join(panelDir, 'build-assets-from-zip.js'));
+  const sourceCandidates = [
+    path.join(panelDir, 'asset-pack', PANEL_SOURCE_ZIP_NAME),
+    path.join(panelDir, PANEL_SOURCE_ZIP_NAME),
+    ...PANEL_SOURCE_DIR_NAMES.map((name) => path.join(panelDir, 'asset-pack', name)),
+    ...PANEL_SOURCE_DIR_NAMES.map((name) => path.join(panelDir, name)),
+  ];
+  info.hasSourceAsset = sourceCandidates.some((candidate) => fs.existsSync(candidate));
 
   const requiredFiles = [
     path.join(panelDir, 'dist', 'webview', 'index.html'),
     path.join(panelDir, 'dist', 'webview', 'kd-panel.js'),
     path.join(panelDir, 'dist', 'webview', 'kd-panel.css'),
-    path.join(panelDir, 'asset-pack', 'Assets.zip.part01'),
-    path.join(panelDir, 'asset-pack', 'Assets.zip.part02'),
-    path.join(panelDir, 'asset-pack', 'Assets.zip.part03'),
   ];
   info.hasCoreWebviewFiles = requiredFiles.every((filePath) => fs.existsSync(filePath));
-
-  const partDir = path.join(panelDir, 'asset-pack');
-  if (fs.existsSync(partDir)) {
-    const parts = fs.readdirSync(partDir).filter((name) => /^Assets\.zip\.part\d+$/i.test(name));
-    info.hasAssetParts = parts.length >= 3;
-  }
 
   info.fresh = compareSemver(info.version, PANEL_MIN_VERSION) >= 0
     && info.hasExpectedLayoutStateKey
     && info.hasFreshWebviewBundle
     && info.hasAssetBuilder
-    && info.hasAssetParts
+    && info.hasSourceAsset
     && info.hasCoreWebviewFiles;
 
   return info;
@@ -236,7 +236,7 @@ if not exist "%PANEL_DIR%\\package.json" (
 )
 cd /d "%PANEL_DIR%"
 del /q *.vsix >nul 2>&1
-echo [KD] Rebuilding panel assets from Assets.zip...
+echo [KD] Rebuilding panel assets from Donarg assets (folder or zip)...
 call node "%PANEL_DIR%\\build-assets-from-zip.js" --workspace "%~dp0"
 if errorlevel 1 exit /b 1
 echo [KD] Packaging VS Code panel extension...
@@ -266,7 +266,7 @@ if (-not (Test-Path (Join-Path $panelDir "package.json"))) {
 
 Set-Location $panelDir
 Get-ChildItem -Path $panelDir -Filter *.vsix -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-Write-Host "[KD] Rebuilding panel assets from Assets.zip..."
+Write-Host "[KD] Rebuilding panel assets from Donarg assets (folder or zip)..."
 node (Join-Path $panelDir "build-assets-from-zip.js") --workspace $PSScriptRoot
 Write-Host "[KD] Packaging VS Code panel extension..."
 npx @vscode/vsce package
@@ -936,7 +936,7 @@ async function install(args) {
       showSuccess(`Native panel bundle ready (version=${panelInfo.version})`);
     } else {
       showWarning(
-        `Native panel bundle missing required files (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, parts=${panelInfo.hasAssetParts ? 'ok' : 'missing'})`
+        `Native panel bundle missing required files (version=${panelInfo.version}, jsBytes=${panelInfo.webviewJsBytes}, sourceAsset=${panelInfo.hasSourceAsset ? 'ok' : 'missing'})`
       );
       showInfo('Asset pack will be rebuilt automatically when you run kd-panel-install or kd-panel-web.');
     }

@@ -55,7 +55,7 @@
   const TILE_WALL = 5;
   const TILE_OUTDOOR = 6;
   const TILE_WATER = 7;
-  const LAYOUT_STORAGE_KEY = 'kdPixel.customLayout.v1';
+  const LAYOUT_STORAGE_KEY = 'kdPixel.customLayout.v2';
 
   const WORLD = {
     cols: WORLD_COLS,
@@ -301,9 +301,7 @@
 
   function buildWorldLayout() {
     WORLD.propSlots = [];
-
-    // Background/outdoor area.
-    fillRect(0, 0, WORLD.cols - 1, WORLD.rows - 1, TILE_OUTDOOR);
+    WORLD.tiles = new Array(WORLD.cols * WORLD.rows).fill(TILE_VOID);
 
     // Building shell and room layout.
     fillRect(20, 2, 33, 10, TILE_FLOOR_MEETING);
@@ -312,9 +310,6 @@
     fillRect(34, 20, 47, 29, TILE_FLOOR_LOUNGE);
     fillRect(26, 10, 27, 20, TILE_FLOOR_MAIN);
     fillRect(24, 18, 33, 20, TILE_FLOOR_MAIN);
-
-    // Water patch outside building for visual depth.
-    fillRect(38, 24, 49, 31, TILE_WATER);
 
     // Room walls.
     drawBorder(20, 2, 33, 10, TILE_WALL);
@@ -359,11 +354,6 @@
       { x: 37, y: 26, group: 'lounge' },
       { x: 42, y: 26, group: 'lounge' },
       { x: 45, y: 26, group: 'lounge' },
-      { x: 15, y: 30, group: 'outdoor' },
-      { x: 19, y: 30, group: 'outdoor' },
-      { x: 24, y: 30, group: 'outdoor' },
-      { x: 30, y: 30, group: 'outdoor' },
-      { x: 46, y: 30, group: 'outdoor' },
     ];
 
     WORLD.propSlots = slots;
@@ -882,6 +872,52 @@
     ]);
   }
 
+  function syntheticCategoryForAtlas(relPath, index) {
+    const lower = String(relPath || '').toLowerCase();
+    if (lower.includes('office 1')) return ['desk', 'chair', 'tech', 'storage', 'decor'][index % 5];
+    if (lower.includes('office 2')) return ['storage', 'desk', 'decor', 'tech', 'chair'][index % 5];
+    if (lower.includes('a4 office walls')) return 'decor';
+    if (lower.includes('a2 office floors') || lower.includes('a5 office floors')) return 'decor';
+    return ['decor', 'desk', 'chair', 'storage', 'tech'][index % 5];
+  }
+
+  function buildSyntheticPropsFromCells(cells, limit = 140) {
+    const out = [];
+    const cap = Math.max(1, Number(limit || 140));
+    let index = 0;
+
+    for (const cell of cells || []) {
+      if (!cell || !cell.image) continue;
+      const stats = cell.stats || {};
+      if ((stats.opaqueRatio || 0) < 0.2) continue;
+      if ((stats.edgeOpaqueRatio || 0) > 0.96) continue;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = TILE;
+      canvas.height = TILE;
+      const cctx = canvas.getContext('2d');
+      if (!cctx) continue;
+      cctx.imageSmoothingEnabled = false;
+      cctx.clearRect(0, 0, TILE, TILE);
+      cctx.drawImage(cell.image, cell.sx, cell.sy, TILE, TILE, 0, 0, TILE, TILE);
+
+      const base = String(cell.relPath || '').split('/').pop().replace(/\.[a-z0-9]+$/i, '');
+      const category = syntheticCategoryForAtlas(cell.relPath, index);
+      const relPath = `synthetic/${category}/${base}-${cell.sx}-${cell.sy}.png`;
+
+      out.push({
+        relPath,
+        image: canvas,
+        w: TILE,
+        h: TILE,
+      });
+      index += 1;
+      if (out.length >= cap) break;
+    }
+
+    return out;
+  }
+
   function furnitureCategoryForPath(relPath) {
     const lower = String(relPath || '').toLowerCase();
     if (/(desk|table|workbench|counter)/i.test(lower)) return 'desk';
@@ -1153,9 +1189,10 @@
           const images = Array.isArray(data.images) ? data.images : [];
           const fallbackCatalog = {
             total_images: images.length,
-            tileAtlases: images.filter((p) => /(walls?|floor|ground|interior|exterior|objects|details|water|coast)/i.test(p)).slice(0, 120),
-            objectAtlases: images.filter((p) => /(objects|interior|house|windows|decorative)/i.test(p)).slice(0, 120),
-            propSprites: images.filter((p) => /(reader|guildmaster|mage|citizen|manequin|tree|rock|plant|fire|flag|statue|bridge|crystal|mushroom)/i.test(p)).slice(0, 220),
+            source_profile: /office tileset/i.test(images.join('\n')) ? 'donarg-office-v1' : 'manifest-fallback-v1',
+            tileAtlases: images.filter((p) => /(office tileset all|a2 office floors|a4 office walls|a5 office floors|walls?|floor|ground|interior|exterior|details|water|coast)/i.test(p)).slice(0, 120),
+            objectAtlases: images.filter((p) => /(office 1|office 2|objects|interior|house|windows|decorative|b-c-d-e)/i.test(p)).slice(0, 120),
+            propSprites: images.filter((p) => /(office 1|office 2|reader|guildmaster|mage|citizen|manequin|tree|rock|plant|fire|flag|statue|bridge|crystal|mushroom)/i.test(p)).slice(0, 220),
             characterSheets: images.filter((p) => /with_shadow/i.test(p) && /(idle|walk|run)_with_shadow/i.test(p)).slice(0, 180),
           };
           return fallbackCatalog;
@@ -1172,27 +1209,45 @@
 
   async function buildAssetPools(catalog) {
     const atlasUniverse = dedupePaths([...(catalog.tileAtlases || []), ...(catalog.objectAtlases || [])]);
+    const sourceProfile = String((catalog && catalog.source_profile) || '').toLowerCase();
+    const useDonargProfile = sourceProfile.includes('donarg') || atlasUniverse.some((rel) => /office tileset/i.test(rel));
 
-    const floorAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['walls_floor', 'floor', 'interior'],
-      exclude: ['objects', 'interior_objects', 'windows_doors', 'house_details', 'water', 'coast', 'exterior', 'street'],
-      limit: 3,
-    });
-    const wallAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['walls_interior', 'wall', 'windows_doors'],
-      exclude: ['water', 'coast', 'floor', 'ground'],
-      limit: 3,
-    });
-    const outdoorAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['ground', 'grass', 'exterior'],
-      exclude: ['water', 'coast', 'interior_objects', 'objects', 'floor', 'wall'],
-      limit: 3,
-    });
-    const waterAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['water', 'coast'],
-      exclude: [],
-      limit: 2,
-    });
+    const floorAtlases = useDonargProfile
+      ? filterAtlasPaths(atlasUniverse, {
+        include: ['office tileset all 16x16 no shadow', 'a2 office floors', 'a5 office floors', 'office tileset all 16x16'],
+        exclude: ['office level', 'palette'],
+        limit: 6,
+      })
+      : filterAtlasPaths(atlasUniverse, {
+        include: ['walls_floor', 'floor', 'interior'],
+        exclude: ['objects', 'interior_objects', 'windows_doors', 'house_details', 'water', 'coast', 'exterior', 'street'],
+        limit: 3,
+      });
+    const wallAtlases = useDonargProfile
+      ? filterAtlasPaths(atlasUniverse, {
+        include: ['a4 office walls', 'a5 office floors', 'office tileset all 16x16 no shadow', 'wall'],
+        exclude: ['office level', 'palette'],
+        limit: 5,
+      })
+      : filterAtlasPaths(atlasUniverse, {
+        include: ['walls_interior', 'wall', 'windows_doors'],
+        exclude: ['water', 'coast', 'floor', 'ground'],
+        limit: 3,
+      });
+    const outdoorAtlases = useDonargProfile
+      ? []
+      : filterAtlasPaths(atlasUniverse, {
+        include: ['ground', 'grass', 'exterior'],
+        exclude: ['water', 'coast', 'interior_objects', 'objects', 'floor', 'wall'],
+        limit: 3,
+      });
+    const waterAtlases = useDonargProfile
+      ? []
+      : filterAtlasPaths(atlasUniverse, {
+        include: ['water', 'coast'],
+        exclude: [],
+        limit: 2,
+      });
 
     async function loadAtlasGroup(paths, extractOptions) {
       const atlasImages = await Promise.all(
@@ -1215,24 +1270,55 @@
       return cells;
     }
 
-    const floors = await loadAtlasGroup(floorAtlases, { minOpaqueRatio: 0.86, minEdgeOpaqueRatio: 0.86, maxCells: 120 });
-    const walls = await loadAtlasGroup(wallAtlases, { minOpaqueRatio: 0.62, minEdgeOpaqueRatio: 0.74, maxCells: 110 });
-    const outdoor = await loadAtlasGroup(outdoorAtlases, { minOpaqueRatio: 0.84, minEdgeOpaqueRatio: 0.82, maxCells: 120 });
-    const water = await loadAtlasGroup(waterAtlases, { minOpaqueRatio: 0.54, minEdgeOpaqueRatio: 0.3, maxCells: 80 });
+    const floors = await loadAtlasGroup(
+      floorAtlases,
+      useDonargProfile
+        ? { minOpaqueRatio: 0.78, minEdgeOpaqueRatio: 0.74, maxCells: 220 }
+        : { minOpaqueRatio: 0.86, minEdgeOpaqueRatio: 0.86, maxCells: 120 }
+    );
+    const walls = await loadAtlasGroup(
+      wallAtlases,
+      useDonargProfile
+        ? { minOpaqueRatio: 0.56, minEdgeOpaqueRatio: 0.6, maxCells: 180 }
+        : { minOpaqueRatio: 0.62, minEdgeOpaqueRatio: 0.74, maxCells: 110 }
+    );
+    const outdoor = await loadAtlasGroup(
+      outdoorAtlases,
+      useDonargProfile
+        ? { minOpaqueRatio: 0.84, minEdgeOpaqueRatio: 0.82, maxCells: 80 }
+        : { minOpaqueRatio: 0.84, minEdgeOpaqueRatio: 0.82, maxCells: 120 }
+    );
+    const water = await loadAtlasGroup(
+      waterAtlases,
+      useDonargProfile
+        ? { minOpaqueRatio: 0.54, minEdgeOpaqueRatio: 0.3, maxCells: 40 }
+        : { minOpaqueRatio: 0.54, minEdgeOpaqueRatio: 0.3, maxCells: 80 }
+    );
 
-    const decorAtlases = filterAtlasPaths(atlasUniverse, {
-      include: ['interior_objects', 'objects'],
-      exclude: ['with_shadow', 'idle_', 'walk_', 'run_', 'windows_doors'],
-      limit: 2,
-    });
-    const decor = await loadAtlasGroup(decorAtlases, { minOpaqueRatio: 0.72, minEdgeOpaqueRatio: 0.45, maxCells: 60 });
+    const decorAtlases = useDonargProfile
+      ? filterAtlasPaths(atlasUniverse, {
+        include: ['b-c-d-e office 1 no shadows', 'b-c-d-e office 2 no shadows', 'b-c-d-e office 1', 'b-c-d-e office 2', 'office tileset all 16x16 no shadow'],
+        exclude: ['with_shadow', 'idle_', 'walk_', 'run_', 'office level', 'palette'],
+        limit: 6,
+      })
+      : filterAtlasPaths(atlasUniverse, {
+        include: ['interior_objects', 'objects'],
+        exclude: ['with_shadow', 'idle_', 'walk_', 'run_', 'windows_doors'],
+        limit: 2,
+      });
+    const decor = await loadAtlasGroup(
+      decorAtlases,
+      useDonargProfile
+        ? { minOpaqueRatio: 0.3, minEdgeOpaqueRatio: 0.08, maxCells: 260 }
+        : { minOpaqueRatio: 0.72, minEdgeOpaqueRatio: 0.45, maxCells: 60 }
+    );
 
     state.pools = {
-      floors: floors.slice(0, 120),
-      walls: walls.slice(0, 110),
+      floors: floors.slice(0, useDonargProfile ? 220 : 120),
+      walls: walls.slice(0, useDonargProfile ? 180 : 110),
       outdoor: outdoor.slice(0, 120),
       water: water.slice(0, 80),
-      decor: decor.slice(0, 60),
+      decor: decor.slice(0, useDonargProfile ? 220 : 60),
     };
 
     const propPaths = selectProps(catalog).slice(0, 30);
@@ -1255,7 +1341,19 @@
       })
     );
 
-    state.props = propImages.filter(Boolean);
+    const syntheticProps = buildSyntheticPropsFromCells(decor, useDonargProfile ? 180 : 80);
+    const mergedProps = [...propImages.filter(Boolean), ...syntheticProps];
+    const dedupedProps = [];
+    const seenPropKeys = new Set();
+    for (const item of mergedProps) {
+      if (!item || !item.relPath) continue;
+      const key = normalizeRelPath(item.relPath);
+      if (seenPropKeys.has(key)) continue;
+      seenPropKeys.add(key);
+      dedupedProps.push(item);
+    }
+
+    state.props = dedupedProps;
     state.propsByPath = new Map(state.props.map((item) => [normalizeRelPath(item.relPath), item]));
     rebuildFurnitureCategories();
 
@@ -1567,9 +1665,9 @@
         }
         return;
       }
-      const baseG = checker ? 62 : 56;
-      const gVar = Math.floor(r1 * 12) - 6;
-      ctx.fillStyle = 'rgb(' + (45 + gVar) + ', ' + (baseG + gVar) + ', ' + (38 + gVar) + ')';
+      const baseBlue = checker ? 54 : 48;
+      const shade = Math.floor(r1 * 12) - 6;
+      ctx.fillStyle = 'rgb(' + (28 + shade) + ', ' + (34 + shade) + ', ' + (baseBlue + shade) + ')';
       ctx.fillRect(px, py, T, T);
       return;
     }
@@ -1819,9 +1917,13 @@
   function handleVscodeMessage(message) {
     if (!message || typeof message !== 'object') return;
 
-    if (message.type === 'layoutLoaded' && message.layout && typeof message.layout === 'object') {
+    if (message.type === 'layoutLoaded') {
       if (state.ready) {
-        restoreCustomLayout(message.layout);
+        if (message.layout && typeof message.layout === 'object') {
+          restoreCustomLayout(message.layout);
+        } else {
+          resetToDefaultLayout();
+        }
       }
       return;
     }

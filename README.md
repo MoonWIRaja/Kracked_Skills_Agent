@@ -32,7 +32,7 @@ Built by <a href="https://krackeddevs.com/">KRACKEDDEVS</a>
 npx github:MoonWIRaja/Kracked_Skills_Agent install
 ```
 
-Installer now validates the bundled panel files locally and rebuilds visual assets from `Assets.zip` during panel install/package.
+Installer now validates the bundled panel files locally and rebuilds visual assets from Donarg source (`asset-pack/Office Tileset/` folder or `Office Tileset (Donarg).zip`) during panel install/package.
 
 ### Install (Non-Interactive)
 
@@ -89,12 +89,13 @@ KD supports 3 observer modes.
 ### 1. Native Panel (VS Code Family)
 
 For VS Code / Cursor / Windsurf.
-Now uses **KD RPG WORLD panel runtime** with map/props/sprites rebuilt from your `Assets.zip`.
+Now uses **KD RPG WORLD panel runtime** with map/props/sprites rebuilt from Donarg source assets.
 You can also:
 
 1. Visualize main agent + professional agents from live KD events
 2. Show delegated professional-agent activity when main agent delegates
 3. Use the exact same renderer in native panel and web mirror
+4. Edit layout directly in panel (`Floor`, `Wall`, `Furniture`, `Eraser`) and keep it persisted per workspace
 
 Install extension from project root:
 
@@ -296,8 +297,8 @@ Then in command palette run:
 KD Pixel: Reset Office Layout
 ```
 
-If still old, confirm extension version is `0.4.3` or newer.
-Then fully reinstall panel (this rebuilds `kd-asset-pack` from `Assets.zip`):
+If still old, confirm extension version is `0.5.0` or newer.
+Then fully reinstall panel (this rebuilds `kd-asset-pack` from Donarg source assets):
 
 ```bash
 kd-panel-install.bat

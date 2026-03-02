@@ -19,7 +19,7 @@ Create a single KD pixel world that blends multiple biomes/themes while keeping 
 - trees, rocks, water, bridges, camp
 - best for `analyst`, `pm`, `architect`, `release-manager`
 
-## Asset Sources (from `Assets.zip`)
+## Asset Sources (from `Office Tileset (Donarg).zip`)
 1. `craftpix-net-189780...guild-hall...zip`:
 - core interior/exterior architecture
 - walls, floors, furniture

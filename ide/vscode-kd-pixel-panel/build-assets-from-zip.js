@@ -6,6 +6,20 @@ const crypto = require('crypto');
 const { spawnSync } = require('node:child_process');
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.bmp']);
+const SOURCE_ZIP_NAMES = [
+  'Office Tileset (Donarg).zip',
+  'Office Tileset Donarg.zip',
+  'OfficeTileset(Donarg).zip',
+  'Assets.zip',
+];
+const SOURCE_DIR_NAMES = [
+  'Office Tileset',
+  'Office-Tileset',
+  'Office_Tileset',
+  'donarg-office-assets',
+  'assets',
+  'Assets',
+];
 
 function parseArgs(argv) {
   const out = {};
@@ -38,58 +52,12 @@ function removeDir(dirPath) {
 function runTarExtract(zipPath, destDir) {
   const res = spawnSync('tar', ['-xf', zipPath, '-C', destDir], {
     encoding: 'utf8',
-    shell: process.platform === 'win32',
     stdio: 'pipe',
   });
   if (res.status !== 0) {
     const msg = (res.stderr || res.stdout || '').trim() || `exit code ${res.status}`;
     throw new Error(`tar extract failed: ${msg}`);
   }
-}
-
-function listZipParts(dirPath) {
-  if (!fs.existsSync(dirPath)) return [];
-  return fs.readdirSync(dirPath)
-    .filter((name) => /^Assets\.zip\.part\d+$/i.test(name))
-    .sort((a, b) => a.localeCompare(b));
-}
-
-function assembleZipFromParts(partsDir, zipOutPath) {
-  const parts = listZipParts(partsDir);
-  if (parts.length === 0) return false;
-
-  const buffers = [];
-  for (const part of parts) {
-    buffers.push(fs.readFileSync(path.join(partsDir, part)));
-  }
-
-  fs.writeFileSync(zipOutPath, Buffer.concat(buffers));
-  return true;
-}
-
-function findSourceZip(panelDir, workspaceDir) {
-  const candidates = [];
-
-  if (workspaceDir) {
-    candidates.push(path.join(workspaceDir, 'Assets.zip'));
-  }
-
-  candidates.push(path.join(panelDir, 'Assets.zip'));
-  candidates.push(path.join(panelDir, 'asset-pack', 'Assets.zip'));
-  candidates.push(path.join(panelDir, '..', '..', '..', 'Assets.zip'));
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return { sourceZip: candidate, assembled: false };
-    }
-  }
-
-  const assembledZipPath = path.join(panelDir, 'asset-pack', 'Assets.zip');
-  if (assembleZipFromParts(path.join(panelDir, 'asset-pack'), assembledZipPath) && fs.existsSync(assembledZipPath)) {
-    return { sourceZip: assembledZipPath, assembled: true };
-  }
-
-  return null;
 }
 
 function walkFiles(rootDir, out = []) {
@@ -102,20 +70,124 @@ function walkFiles(rootDir, out = []) {
 
   for (const entry of entries) {
     const fullPath = path.join(rootDir, entry.name);
-    const nameLower = entry.name.toLowerCase();
-
     if (entry.isDirectory()) {
-      if (nameLower === '__macosx') continue;
+      if (entry.name.toLowerCase() === '__macosx') continue;
       walkFiles(fullPath, out);
       continue;
     }
-
-    if (entry.isFile()) {
-      out.push(fullPath);
-    }
+    if (entry.isFile()) out.push(fullPath);
   }
 
   return out;
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function listZipParts(dirPath, baseZipName) {
+  if (!fs.existsSync(dirPath)) return [];
+  const regex = new RegExp(`^${escapeRegExp(baseZipName)}\\.part\\d+$`, 'i');
+  return fs.readdirSync(dirPath)
+    .filter((name) => regex.test(name))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function assembleZipFromParts(partsDir, zipOutPath, baseZipName) {
+  const parts = listZipParts(partsDir, baseZipName);
+  if (parts.length === 0) return false;
+
+  const buffers = [];
+  for (const part of parts) {
+    buffers.push(fs.readFileSync(path.join(partsDir, part)));
+  }
+  fs.writeFileSync(zipOutPath, Buffer.concat(buffers));
+  return true;
+}
+
+function hasImageAssets(dirPath) {
+  if (!fs.existsSync(dirPath)) return false;
+  const files = walkFiles(dirPath);
+  const images = files.filter((filePath) => IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase()));
+  if (images.length < 4) return false;
+
+  const relNames = images.map((filePath) => path.relative(dirPath, filePath).replace(/\\/g, '/').toLowerCase());
+  if (relNames.some((name) => name.includes('office tileset all 16x16'))) return true;
+  if (
+    relNames.some((name) => name.includes('a2 office floors'))
+    && relNames.some((name) => name.includes('a4 office walls'))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function findSourceInput(panelDir, workspaceDir) {
+  const roots = [];
+  roots.push(path.join(panelDir, 'asset-pack'));
+  roots.push(panelDir);
+  if (workspaceDir) roots.push(workspaceDir);
+  roots.push(path.join(panelDir, '..', '..', '..'));
+
+  for (const root of roots) {
+    for (const dirName of SOURCE_DIR_NAMES) {
+      const candidate = path.join(root, dirName);
+      if (hasImageAssets(candidate)) {
+        return { type: 'dir', sourcePath: candidate, assembled: false, sourceName: dirName };
+      }
+    }
+
+    if (!fs.existsSync(root)) continue;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      entries = [];
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const name = entry.name.toLowerCase();
+      if (!/(office|donarg|asset)/i.test(name)) continue;
+      const candidate = path.join(root, entry.name);
+      if (hasImageAssets(candidate)) {
+        return { type: 'dir', sourcePath: candidate, assembled: false, sourceName: entry.name };
+      }
+    }
+  }
+
+  for (const root of roots) {
+    for (const zipName of SOURCE_ZIP_NAMES) {
+      const candidate = path.join(root, zipName);
+      if (fs.existsSync(candidate)) {
+        return { type: 'zip', sourcePath: candidate, assembled: false, sourceName: zipName };
+      }
+    }
+  }
+
+  const partsDir = path.join(panelDir, 'asset-pack');
+  for (const zipName of SOURCE_ZIP_NAMES) {
+    const assembledPath = path.join(partsDir, zipName);
+    if (assembleZipFromParts(partsDir, assembledPath, zipName) && fs.existsSync(assembledPath)) {
+      return { type: 'zip', sourcePath: assembledPath, assembled: true, sourceName: zipName };
+    }
+  }
+
+  return null;
+}
+
+function copyTree(srcDir, destDir) {
+  ensureDir(destDir);
+  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyTree(srcPath, destPath);
+    } else if (entry.isFile()) {
+      ensureDir(path.dirname(destPath));
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
 }
 
 function cleanExtractedTree(rootDir) {
@@ -143,10 +215,8 @@ function isRuntimeImage(relPath) {
   if (!IMAGE_EXTENSIONS.has(path.extname(lower))) return false;
   if (lower.includes('/__macosx/')) return false;
   if (base.startsWith('._')) return false;
-  if (base.includes('coupon')) return false;
   if (base.includes('screenshot')) return false;
-  if (base.includes('free assets craftpix')) return false;
-
+  if (base.includes('coupon')) return false;
   return true;
 }
 
@@ -157,11 +227,10 @@ function uniqueSorted(items) {
 function prioritize(list, prioritizedNames) {
   const priorities = prioritizedNames.map((name) => name.toLowerCase());
   return [...list].sort((a, b) => {
-    const aLower = a.toLowerCase();
-    const bLower = b.toLowerCase();
-
-    const ai = priorities.findIndex((name) => aLower.endsWith(name));
-    const bi = priorities.findIndex((name) => bLower.endsWith(name));
+    const al = a.toLowerCase();
+    const bl = b.toLowerCase();
+    const ai = priorities.findIndex((name) => al.endsWith(name));
+    const bi = priorities.findIndex((name) => bl.endsWith(name));
 
     if (ai !== -1 || bi !== -1) {
       if (ai === -1) return 1;
@@ -169,11 +238,53 @@ function prioritize(list, prioritizedNames) {
       if (ai !== bi) return ai - bi;
     }
 
-    return aLower.localeCompare(bLower);
+    return al.localeCompare(bl);
   });
 }
 
-function categorizeImages(images) {
+function categorizeDonargImages(images) {
+  const sorted = uniqueSorted(images);
+
+  const tileAtlases = prioritize(sorted.filter((rel) => /office tileset all 16x16|a2 office floors|a4 office walls|a5 office floors/i.test(rel)), [
+    'office tileset/office tileset all 16x16 no shadow.png',
+    'office tileset/office tileset all 16x16.png',
+    'office tileset/office vx ace/a2 office floors.png',
+    'office tileset/office vx ace/a4 office walls.png',
+    'office tileset/office vx ace/a5 office floors & walls.png',
+    'office tileset/office tileset all 32x32 no shadow.png',
+    'office tileset/office tileset all 32x32.png',
+  ]).slice(0, 32);
+
+  const objectAtlases = prioritize(sorted.filter((rel) => /b-c-d-e office|office tileset all 16x16/i.test(rel)), [
+    'office tileset/office vx ace/b-c-d-e office 1 no shadows.png',
+    'office tileset/office vx ace/b-c-d-e office 2 no shadows.png',
+    'office tileset/office vx ace/b-c-d-e office 1.png',
+    'office tileset/office vx ace/b-c-d-e office 2.png',
+    'office tileset/office tileset all 16x16 no shadow.png',
+  ]).slice(0, 32);
+
+  const layoutDesigns = prioritize(sorted.filter((rel) => /office designs\/office level/i.test(rel)), [
+    'office tileset/office designs/office level 2.png',
+    'office tileset/office designs/office level 3.png',
+  ]).slice(0, 16);
+
+  return {
+    sourceProfile: 'donarg-office-v1',
+    tileAtlases,
+    objectAtlases,
+    propSprites: [...objectAtlases],
+    characterSheets: [],
+    layoutDesigns,
+    featured: {
+      floorSheet: tileAtlases.find((p) => /16x16 no shadow\.png$/i.test(p)) || tileAtlases[0] || null,
+      wallSheet: tileAtlases.find((p) => /a4 office walls\.png$/i.test(p)) || tileAtlases[0] || null,
+      objectSheet: objectAtlases.find((p) => /office 1 no shadows\.png$/i.test(p)) || objectAtlases[0] || null,
+      mainCharacterSheet: null,
+    },
+  };
+}
+
+function categorizeLegacyImages(images) {
   const tileAtlases = [];
   const objectAtlases = [];
   const propSprites = [];
@@ -195,17 +306,9 @@ function categorizeImages(images) {
       continue;
     }
 
-    if (tileRegex.test(base)) {
-      tileAtlases.push(rel);
-    }
-
-    if (objectAtlasRegex.test(base)) {
-      objectAtlases.push(rel);
-    }
-
-    if (propRegex.test(base) && !objectAtlasRegex.test(base)) {
-      propSprites.push(rel);
-    }
+    if (tileRegex.test(base)) tileAtlases.push(rel);
+    if (objectAtlasRegex.test(base)) objectAtlases.push(rel);
+    if (propRegex.test(base) && !objectAtlasRegex.test(base)) propSprites.push(rel);
   }
 
   const prioritizedTileAtlases = prioritize(uniqueSorted(tileAtlases), [
@@ -260,14 +363,22 @@ function categorizeImages(images) {
   ]).slice(0, 700);
 
   return {
+    sourceProfile: 'legacy-mixed-v1',
     tileAtlases: prioritizedTileAtlases,
     objectAtlases: prioritizedObjectAtlases,
     propSprites: prioritizedProps,
     characterSheets: prioritizedCharacterSheets,
+    layoutDesigns: [],
+    featured: {
+      floorSheet: prioritizedTileAtlases.find((p) => /walls_floor\.png$/i.test(p)) || prioritizedTileAtlases[0] || null,
+      wallSheet: prioritizedTileAtlases.find((p) => /walls_interior\.png$/i.test(p)) || prioritizedTileAtlases[0] || null,
+      objectSheet: prioritizedObjectAtlases.find((p) => /interior_objects\.png$/i.test(p)) || prioritizedObjectAtlases[0] || null,
+      mainCharacterSheet: prioritizedCharacterSheets.find((p) => /unarmed_idle_with_shadow\.png$/i.test(p)) || prioritizedCharacterSheets[0] || null,
+    },
   };
 }
 
-function buildManifestAndCatalog(webviewDir, extractedDir, packs, sourceZipPath) {
+function buildManifestAndCatalog(webviewDir, extractedDir, packs, sourceLabel) {
   const allFiles = walkFiles(extractedDir);
   const images = [];
 
@@ -279,17 +390,25 @@ function buildManifestAndCatalog(webviewDir, extractedDir, packs, sourceZipPath)
   }
 
   const imageList = uniqueSorted(images);
-  const categories = categorizeImages(imageList);
+  const isDonarg = imageList.some((rel) => /office tileset/i.test(rel));
+  const categories = isDonarg ? categorizeDonargImages(imageList) : categorizeLegacyImages(imageList);
 
   const signature = crypto
     .createHash('sha1')
-    .update(JSON.stringify({ imageCount: imageList.length, packs: packs.length, categories }, null, 0))
+    .update(JSON.stringify({
+      imageCount: imageList.length,
+      packs: packs.length,
+      profile: categories.sourceProfile,
+      tiles: categories.tileAtlases,
+      objects: categories.objectAtlases,
+    }))
     .digest('hex')
     .slice(0, 16);
 
   const manifest = {
     generated_at: new Date().toISOString(),
-    source: path.basename(sourceZipPath || 'Assets.zip'),
+    source: sourceLabel || SOURCE_ZIP_NAMES[0],
+    source_profile: categories.sourceProfile,
     packs,
     total_images: imageList.length,
     images: imageList,
@@ -298,19 +417,17 @@ function buildManifestAndCatalog(webviewDir, extractedDir, packs, sourceZipPath)
   const catalog = {
     generated_at: manifest.generated_at,
     source: manifest.source,
+    source_profile: manifest.source_profile,
     bundle_signature: signature,
     packs,
     total_images: imageList.length,
+    tile_size: 16,
     tileAtlases: categories.tileAtlases,
     objectAtlases: categories.objectAtlases,
     propSprites: categories.propSprites,
     characterSheets: categories.characterSheets,
-    featured: {
-      floorSheet: categories.tileAtlases.find((p) => /walls_floor\.png$/i.test(p)) || categories.tileAtlases[0] || null,
-      wallSheet: categories.tileAtlases.find((p) => /walls_interior\.png$/i.test(p)) || categories.tileAtlases[0] || null,
-      objectSheet: categories.objectAtlases.find((p) => /interior_objects\.png$/i.test(p)) || categories.objectAtlases[0] || null,
-      mainCharacterSheet: categories.characterSheets.find((p) => /unarmed_idle_with_shadow\.png$/i.test(p)) || categories.characterSheets[0] || null,
-    },
+    layoutDesigns: categories.layoutDesigns,
+    featured: categories.featured,
   };
 
   const outDir = path.join(webviewDir, 'kd-asset-pack');
@@ -321,70 +438,91 @@ function buildManifestAndCatalog(webviewDir, extractedDir, packs, sourceZipPath)
   return { manifest, catalog };
 }
 
+function collectNestedZipFiles(rootDir) {
+  return walkFiles(rootDir)
+    .filter((filePath) => path.extname(filePath).toLowerCase() === '.zip')
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function topLevelPackNames(extractedDir) {
+  if (!fs.existsSync(extractedDir)) return [];
+  return fs.readdirSync(extractedDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const panelDir = __dirname;
   const workspaceDir = args.workspace ? path.resolve(String(args.workspace)) : null;
-  const source = findSourceZip(panelDir, workspaceDir);
+  const source = findSourceInput(panelDir, workspaceDir);
 
-  if (!source || !source.sourceZip) {
-    warn('Assets.zip not found. Skipping custom asset rebuild.');
+  if (!source || !source.sourcePath) {
+    warn(`Source assets not found. Expected folder (${SOURCE_DIR_NAMES.join(', ')}) or zip (${SOURCE_ZIP_NAMES.join(', ')})`);
     process.exit(0);
   }
 
-  const sourceZip = source.sourceZip;
-  log(`Using source zip: ${sourceZip}`);
+  const sourceLabel = source.type === 'dir'
+    ? `${path.basename(source.sourcePath)} (folder)`
+    : path.basename(source.sourcePath);
+  log(`Using source ${source.type}: ${source.sourcePath}`);
 
   const webviewDir = path.join(panelDir, 'dist', 'webview');
   const packDir = path.join(webviewDir, 'kd-asset-pack');
-  const nestedDir = path.join(packDir, 'nested-zips');
   const extractedDir = path.join(packDir, 'extracted');
 
-  // Full reset of old bundled assets for deterministic rebuild.
+  // Full reset for deterministic rebuild.
   removeDir(path.join(webviewDir, 'assets'));
   removeDir(packDir);
-  ensureDir(nestedDir);
   ensureDir(extractedDir);
+  let packs = [];
 
-  runTarExtract(sourceZip, nestedDir);
+  if (source.type === 'dir') {
+    const folderName = path.basename(source.sourcePath);
+    const outDir = path.join(extractedDir, folderName);
+    copyTree(source.sourcePath, outDir);
+    packs = [folderName];
+  } else {
+    const tmpDir = path.join(packDir, '__tmp');
+    const tmpSource = path.join(tmpDir, 'source');
+    ensureDir(tmpSource);
+    runTarExtract(source.sourcePath, tmpSource);
 
-  const topAssetsDir = path.join(nestedDir, 'Assets');
-  const scanDir = fs.existsSync(topAssetsDir) ? topAssetsDir : nestedDir;
-  const nestedZips = fs.readdirSync(scanDir)
-    .filter((name) => name.toLowerCase().endsWith('.zip'))
-    .sort((a, b) => a.localeCompare(b));
-
-  if (nestedZips.length === 0) {
-    warn('No nested zip packs found after extraction.');
-    process.exit(1);
-  }
-
-  let extractedOk = 0;
-  for (const zipName of nestedZips) {
-    const zipPath = path.join(scanDir, zipName);
-    const packName = zipName.replace(/\.zip$/i, '');
-    const packOut = path.join(extractedDir, packName);
-    ensureDir(packOut);
-
-    try {
-      runTarExtract(zipPath, packOut);
-      extractedOk += 1;
-    } catch (err) {
-      warn(`Failed to extract ${zipName}: ${err && err.message ? err.message : String(err)}`);
+    const nestedZips = collectNestedZipFiles(tmpSource);
+    if (nestedZips.length > 0) {
+      let extractedOk = 0;
+      for (const zipPath of nestedZips) {
+        const packName = path.basename(zipPath, path.extname(zipPath));
+        const packOut = path.join(extractedDir, packName);
+        ensureDir(packOut);
+        try {
+          runTarExtract(zipPath, packOut);
+          extractedOk += 1;
+        } catch (err) {
+          warn(`Failed to extract nested zip ${path.basename(zipPath)}: ${err && err.message ? err.message : String(err)}`);
+        }
+      }
+      packs = nestedZips.map((zipPath) => path.basename(zipPath));
+      log(`Nested packs extracted: ${extractedOk}/${nestedZips.length}`);
+    } else {
+      copyTree(tmpSource, extractedDir);
+      packs = topLevelPackNames(extractedDir);
+      if (packs.length === 0) packs = [path.basename(source.sourcePath)];
     }
+    removeDir(tmpDir);
   }
 
   cleanExtractedTree(extractedDir);
-  removeDir(nestedDir);
 
-  const { manifest, catalog } = buildManifestAndCatalog(webviewDir, extractedDir, nestedZips, sourceZip);
+  const { manifest, catalog } = buildManifestAndCatalog(webviewDir, extractedDir, packs, sourceLabel);
 
   if (source.assembled) {
-    fs.rmSync(sourceZip, { force: true });
+    fs.rmSync(source.sourcePath, { force: true });
   }
 
   log(
-    `Asset rebuild complete: packs=${extractedOk}/${nestedZips.length}, images=${manifest.total_images}, tiles=${catalog.tileAtlases.length}, props=${catalog.propSprites.length}, characters=${catalog.characterSheets.length}`
+    `Asset rebuild complete: packs=${packs.length}, images=${manifest.total_images}, tiles=${catalog.tileAtlases.length}, props=${catalog.propSprites.length}, characters=${catalog.characterSheets.length}, profile=${catalog.source_profile}`
   );
 }
 

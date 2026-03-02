@@ -377,7 +377,7 @@ function htmlFallback() {
 <body>
   <div class="box">
     <h3>KD Pixel web bundle not ready</h3>
-    <p>Run <code>kd-panel-install.bat</code> or rebuild asset bundle from <code>Assets.zip</code>.</p>
+    <p>Run <code>kd-panel-install.bat</code> or rebuild asset bundle from Donarg assets folder/zip.</p>
   </div>
 </body>
 </html>`;
@@ -443,7 +443,7 @@ async function main() {
       process.stdout.write(`[KD][warn] ${buildResult.reason}\n`);
       panelReady = false;
     } else if (buildResult.built) {
-      process.stdout.write('[KD] Panel assets rebuilt from Assets.zip\n');
+      process.stdout.write('[KD] Panel assets rebuilt from Donarg assets source\n');
     }
   }
 

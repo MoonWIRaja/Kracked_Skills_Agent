@@ -3,7 +3,7 @@
 Native KD observer panel that renders a pixel world from project events:
 
 - Event stream: `.kracked/runtime/events.jsonl`
-- Asset source: `Assets.zip` (or split parts in `asset-pack/`)
+- Asset source: `asset-pack/Office Tileset/` folder (preferred) or `Office Tileset (Donarg).zip`
 
 This panel now runs the KD RPG world renderer and rebuilds its visual bundle from your asset pack.
 
@@ -18,7 +18,7 @@ npx @vscode/vsce package
 Install VSIX:
 
 ```bash
-code --install-extension kd-pixel-panel-0.4.3.vsix --force
+code --install-extension kd-pixel-panel-0.5.0.vsix --force
 ```
 
 ## Open Panel
@@ -32,6 +32,7 @@ code --install-extension kd-pixel-panel-0.4.3.vsix --force
 - Observer mode only (driven by KD events).
 - Main agent + professional agents are rendered from event activity/delegation.
 - Web mirror and native panel share the same frontend bundle.
+- In-panel layout editor supports `Floor`, `Wall`, `Furniture`, and `Eraser`.
 
 ## Attribution
 

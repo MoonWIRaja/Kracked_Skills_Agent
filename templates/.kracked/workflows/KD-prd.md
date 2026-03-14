@@ -1,50 +1,39 @@
----
-name: 'kd-prd'
-description: '[PM] Generate full PRD with personas, metrics, risks, acceptance criteria'
----
+# `/kd-prd`
 
-# /kd-prd — Requirements Phase
+## Purpose
+Tukar keputusan brainstorm menjadi PRD formal yang boleh dilaksanakan.
 
-## Agent: [PM] Paan
-Load: `{project-root}/.kracked/agents/pm.md`
+## Skills To Load
+- `agent-dialogue`
+- `learning-xp`
 
-## Entry Criteria
-- `{project-root}/KD_output/brainstorm/brainstorm.md` exists with selected approach
+## Required Agents
+- main-agent
+- pm
+- analyst
 
-## Instructions
+## Required Actions
+1. Baca hasil brainstorm.
+2. Paparkan dialog pendek antara main agent, PM, dan analyst sebelum dokumen final.
+3. Hasilkan:
+   - problem statement
+   - target users/personas
+   - MVP scope
+   - out-of-scope
+   - KPIs
+   - acceptance criteria
+   - dependencies
+   - risks
+   - traceability kepada brainstorm
+4. Sertakan visual ringkas jika membantu.
+5. Tulis output ke `KD_output/PRD/prd.md`.
 
-### Step 1: Load Context
-Read discovery.md, brainstorm.md, scale.json, status.md
-
-### Step 2: Generate PRD
-Use template: `{project-root}/.kracked/templates/prd.md`
-
-Include:
-1. **Problem Statement** — clear definition of the problem
-2. **Target Users & Personas** — who are we building for
-3. **User Stories** — high-level user stories with acceptance criteria
-4. **Success Metrics** — measurable KPIs
-5. **MVP Scope** — what's in vs what's out for V1
-6. **Risks & Mitigations** — identified risks with mitigation plans
-7. **Dependencies** — external systems and third-party services
-8. **Timeline Estimate** — based on scale assessment
-
-### Step 3: Validation Block
-Present Validation Block before finalizing:
+## Footer
+```text
+Next command: /kd-arch
+XP updated: +60
+Learning bonus: +10 / none
+Memory updated: yes
+Artifacts written: [KD_output/PRD/prd.md, KD_output/transcripts/<timestamp>-kd-prd.md]
+Agents consulted: [main-agent, pm, analyst]
 ```
-## 🔍 Validation Block
-**Keputusan**: PRD untuk [Nama Projek]
-**Dicadangkan oleh**: [PM] Paan
-**Keyakinan**: [HIGH/MEDIUM/LOW]
-**Syor**: [Teruskan/Semak Semula]
-```
-
-### Step 4: Save Output
-Save to: `{project-root}/KD_output/PRD/prd.md`
-
-### Step 5: Update Status & XP
-- Update status.md → Stage: Requirements
-- +100 XP for PRD completion
-
-### Step 6: Ask User
-"PRD selesai. Sila semak dan luluskan sebelum kita teruskan ke /kd-arch."

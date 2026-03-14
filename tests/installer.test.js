@@ -34,7 +34,9 @@ test('installer creates core KD directories in non-interactive mode', async () =
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'config', 'main-agent.json')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'SCHEMA.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'events.jsonl')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'transcripts.jsonl')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'emit-event.js')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'emit-transcript.js')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'pixel-tui.js')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'runtime', 'pixel-web.js')));
     assert.ok(fs.existsSync(path.join(tempDir, '.kracked', 'tools', 'vscode-kd-pixel-panel', 'package.json')));
@@ -50,11 +52,16 @@ test('installer creates core KD directories in non-interactive mode', async () =
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-web.bat')));
     assert.ok(fs.existsSync(path.join(tempDir, 'kd-panel-web.ps1')));
     assert.ok(fs.existsSync(path.join(tempDir, 'KD_output', 'status', 'status.md')));
+    assert.ok(fs.existsSync(path.join(tempDir, 'KD_output', 'transcripts')));
     assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'INSTRUCTIONS.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'commands', 'kd.md')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'commands', 'kd-roster.md')));
 
     const settings = JSON.parse(
       fs.readFileSync(path.join(tempDir, '.kracked', 'config', 'settings.json'), 'utf8')
+    );
+    const mainAgentProfile = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.kracked', 'config', 'main-agent.json'), 'utf8')
     );
     const agents = JSON.parse(
       fs.readFileSync(path.join(tempDir, '.kracked', 'config', 'agents.json'), 'utf8')
@@ -92,14 +99,38 @@ test('installer creates core KD directories in non-interactive mode', async () =
       ],
       { cwd: tempDir, encoding: 'utf8' }
     );
+    execFileSync(
+      'node',
+      [
+        path.join(tempDir, '.kracked', 'runtime', 'emit-transcript.js'),
+        '--command', 'kd-prd',
+        '--speaker-id', 'main-agent',
+        '--speaker-name', 'Moon',
+        '--speaker-role', 'Master Agent',
+        '--text', 'Workflow completed',
+      ],
+      { cwd: tempDir, encoding: 'utf8' }
+    );
     const eventsData = fs.readFileSync(path.join(tempDir, '.kracked', 'runtime', 'events.jsonl'), 'utf8');
     const lastLine = eventsData.trim().split('\n').pop();
     const event = JSON.parse(lastLine);
+    const transcriptData = fs.readFileSync(path.join(tempDir, '.kracked', 'runtime', 'transcripts.jsonl'), 'utf8');
+    const transcript = JSON.parse(transcriptData.trim().split('\n').pop());
 
     assert.equal(settings.project.main_agent_name, 'Moon');
+    assert.equal(settings.language.communication, 'English');
+    assert.equal(settings.language.planning_and_chat, 'English');
+    assert.equal(settings.language.explanation_output, 'English');
+    assert.match(settings.language.code_output, /English unless the user explicitly requests another language/);
     assert.equal(agents.main.name, 'Moon');
-    assert.equal(agents.professional.length, 9);
+    assert.equal(mainAgentProfile.name, 'Moon');
+    assert.equal('internal_persona' in agents.main, false);
+    assert.equal('internal_persona' in mainAgentProfile, false);
+    assert.equal(agents.professional.length, 11);
+    assert.equal(Object.keys(agents.detailsByRole || {}).length, 11);
     assert.ok(agents.professional.every((entry) => entry.name && entry.name !== 'Moon'));
+    assert.ok(agents.professional.every((entry) => entry.mention));
+    assert.ok(agents.professional.every((entry) => !('internal_persona' in entry)));
     assert.equal(
       new Set(agents.professional.map((entry) => entry.name.toLowerCase())).size,
       agents.professional.length
@@ -113,12 +144,14 @@ test('installer creates core KD directories in non-interactive mode', async () =
     assert.equal(event.source, 'antigravity');
     assert.equal(event.agent_name, 'Moon');
     assert.equal(event.task, 'kd-prd');
+    assert.equal(transcript.command, 'kd-prd');
+    assert.equal(transcript.speaker_name, 'Moon');
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test('reinstall preserves existing KD_output status, XP, events, and memories', async () => {
+test('reinstall preserves existing KD_output status, XP, events, transcripts, memories, and roster names', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kd-reinstall-'));
 
   try {
@@ -134,7 +167,9 @@ test('reinstall preserves existing KD_output status, XP, events, and memories', 
     const statusPath = path.join(tempDir, 'KD_output', 'status', 'status.md');
     const xpPath = path.join(tempDir, '.kracked', 'security', 'xp.json');
     const eventsPath = path.join(tempDir, '.kracked', 'runtime', 'events.jsonl');
+    const transcriptsPath = path.join(tempDir, '.kracked', 'runtime', 'transcripts.jsonl');
     const memoriesPath = path.join(tempDir, '.kracked', 'skills', 'memories', 'SKILL.md');
+    const agentsPath = path.join(tempDir, '.kracked', 'config', 'agents.json');
 
     fs.writeFileSync(statusPath, '# Custom Status\nDo not overwrite.', 'utf8');
     fs.writeFileSync(
@@ -154,7 +189,10 @@ test('reinstall preserves existing KD_output status, XP, events, and memories', 
       'utf8'
     );
     fs.writeFileSync(eventsPath, '{"source":"antigravity","message":"old-event"}\n', 'utf8');
+    fs.writeFileSync(transcriptsPath, '{"command":"kd-prd","speaker_name":"Moon","text":"old-transcript"}\n', 'utf8');
     fs.writeFileSync(memoriesPath, '# Custom Memory\nPreserve this.', 'utf8');
+    const originalAgents = JSON.parse(fs.readFileSync(agentsPath, 'utf8'));
+    const originalAnalyst = originalAgents.byRole.analyst;
 
     await install({
       directory: tempDir,
@@ -168,7 +206,10 @@ test('reinstall preserves existing KD_output status, XP, events, and memories', 
     const statusAfter = fs.readFileSync(statusPath, 'utf8');
     const xpAfter = JSON.parse(fs.readFileSync(xpPath, 'utf8'));
     const eventsAfter = fs.readFileSync(eventsPath, 'utf8');
+    const transcriptsAfter = fs.readFileSync(transcriptsPath, 'utf8');
     const memoriesAfter = fs.readFileSync(memoriesPath, 'utf8');
+    const agentsAfter = JSON.parse(fs.readFileSync(agentsPath, 'utf8'));
+    const settingsAfter = JSON.parse(fs.readFileSync(path.join(tempDir, '.kracked', 'config', 'settings.json'), 'utf8'));
 
     assert.equal(statusAfter, '# Custom Status\nDo not overwrite.');
     assert.equal(xpAfter.level, 7);
@@ -176,9 +217,32 @@ test('reinstall preserves existing KD_output status, XP, events, and memories', 
     assert.equal(xpAfter.agent, 'Qih');
     assert.equal(Array.isArray(xpAfter.history), true);
     assert.match(eventsAfter, /old-event/);
+    assert.match(transcriptsAfter, /old-transcript/);
     assert.equal(memoriesAfter, '# Custom Memory\nPreserve this.');
+    assert.equal(agentsAfter.byRole.analyst, originalAnalyst);
+    assert.equal(settingsAfter.language.communication, 'Bahasa Melayu');
     assert.ok(fs.existsSync(path.join(tempDir, 'CLAUDE.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.agent', 'workflows', 'kd.md')));
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('installer requires main agent name in non-interactive mode', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kd-install-required-agent-'));
+
+  try {
+    await assert.rejects(
+      () =>
+        install({
+          directory: tempDir,
+          language: 'EN',
+          tools: 'codex',
+          name: 'NoAgentProject',
+          yes: true,
+        }),
+      /Main agent name is required/
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

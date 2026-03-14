@@ -1,30 +1,24 @@
 ---
 skill: memories
-version: 1.0.0
+version: 2.0.0
 auto_update: true
-language: [EN, MS]
-triggers: ["memory", "ingat", "konteks", "context"]
-agents: ["amad"]
 ---
 
-# Session Memory — [Nama Projek]
-*Dikemas kini: [timestamp]*
+# KD Project Memory
 
-## 🎯 Fokus Semasa
-[Apa yang sedang diusahakan sekarang]
+## Current Focus
+- ...
 
-## 🔄 Kerja Terkini
-[Perubahan terakhir yang dibuat]
+## Last Confirmed Decisions
+- ...
 
-## 📋 Tugas Belum Selesai
-- [ ] [Tugas 1]
-- [ ] [Tugas 2]
+## Learned From Sub-Agents
+- learning_key:
+  learned_from:
+  why_new:
 
-## 📌 Nota Konteks
-[Keputusan penting dan gotcha yang perlu diingat]
+## Next Command
+- ...
 
-## 🏁 Peringkat Semasa
-[Stage: Discovery/Brainstorm/Requirements/Architecture/Implementation/Quality/Deployment/Release]
-
-## ✅ Definisi Selesai (untuk sprint ini)
-[Kriteria penerimaan yang dipersetujui]
+## Risks To Remember
+- ...

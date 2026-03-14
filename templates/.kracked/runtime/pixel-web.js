@@ -15,46 +15,39 @@ const ROLE_MAP = {
   security: 'Security',
   devops: 'DevOps',
   'release-manager': 'Release Manager',
+  'ui-ux-frontend': 'UI/UX Frontend',
+  'backend-api': 'Backend/API',
 };
 
 const TASK_ROLE_MAP = {
-  'kd-analyze': ['analyst'],
-  'kd-brainstorm': ['analyst', 'pm'],
-  'kd-prd': ['pm'],
-  'kd-arch': ['architect', 'security'],
-  'kd-story': ['tech-lead'],
-  'kd-dev-story': ['engineer'],
-  'kd-code-review': ['qa', 'security'],
-  'kd-deploy': ['devops'],
-  'kd-release': ['release-manager'],
-  'kd-test': ['qa'],
-  'kd-security-audit': ['security'],
+  'kd-analyze': ['analyst', 'ui-ux-frontend', 'backend-api'],
+  'kd-brainstorm': ['analyst', 'pm', 'ui-ux-frontend', 'backend-api', 'architect', 'security', 'devops'],
+  'kd-prd': ['pm', 'analyst'],
+  'kd-arch': ['architect', 'ui-ux-frontend', 'backend-api', 'security', 'devops'],
+  'kd-story': ['tech-lead', 'pm'],
+  'kd-sprint-planning': ['pm', 'tech-lead', 'engineer'],
+  'kd-dev-story': ['engineer', 'tech-lead', 'qa'],
+  'kd-test': ['qa', 'engineer'],
   'kd-refactor': ['tech-lead', 'engineer'],
-  'kd-sprint-planning': ['pm', 'tech-lead'],
-  'kd-sprint-review': ['pm', 'qa'],
-  'kd-validate': ['qa'],
-};
-
-const ROLE_HINTS = {
-  analyst: ['analyst', 'analysis', 'discover', 'research'],
-  pm: ['product', 'pm', 'prd', 'backlog'],
-  architect: ['architect', 'architecture', 'api', 'schema'],
-  'tech-lead': ['tech lead', 'tl', 'refactor'],
-  engineer: ['engineer', 'developer', 'coding', 'implement'],
-  qa: ['qa', 'quality', 'test'],
-  security: ['security', 'audit', 'owasp'],
-  devops: ['devops', 'deploy', 'pipeline'],
-  'release-manager': ['release', 'changelog'],
+  'kd-code-review': ['qa', 'security', 'architect'],
+  'kd-validate': ['pm', 'qa'],
+  'kd-deploy': ['devops', 'security'],
+  'kd-release': ['release-manager', 'devops'],
+  'kd-sprint-review': ['pm', 'tech-lead', 'qa'],
+  'kd-retrospective': ['release-manager', 'pm', 'tech-lead'],
+  'kd-api-design': ['backend-api', 'architect', 'security'],
+  'kd-db-schema': ['backend-api', 'architect'],
+  'kd-security-audit': ['security', 'architect', 'qa'],
 };
 
 function parseArgs(argv) {
   const out = {};
-  for (let i = 0; i < argv.length; i++) {
-    const t = argv[i];
-    if (!t.startsWith('--')) continue;
-    const k = t.slice(2);
-    const v = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
-    out[k] = v;
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token.startsWith('--')) continue;
+    const key = token.slice(2);
+    const next = argv[i + 1];
+    out[key] = next && !next.startsWith('--') ? argv[(i += 1)] : 'true';
   }
   return out;
 }
@@ -74,248 +67,200 @@ function toBool(value, fallback = false) {
 
 function openUrl(url) {
   try {
-    const target = String(url || '').trim();
-    if (!target) return;
     if (process.platform === 'win32') {
-      childProcess.spawn('cmd', ['/c', 'start', '', target], {
-        detached: true,
-        stdio: 'ignore',
-      }).unref();
+      childProcess.spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
       return;
     }
     if (process.platform === 'darwin') {
-      childProcess.spawn('open', [target], { detached: true, stdio: 'ignore' }).unref();
+      childProcess.spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
       return;
     }
-    childProcess.spawn('xdg-open', [target], { detached: true, stdio: 'ignore' }).unref();
+    childProcess.spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
   } catch {
     // Ignore browser-open failures.
   }
 }
 
 function eventTime(event) {
-  const n = new Date(event && event.ts ? event.ts : 0).getTime();
-  return Number.isFinite(n) ? n : 0;
+  const ts = new Date(event && event.ts ? event.ts : 0).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function readJsonLines(filePath, maxHistory = 1600) {
+  if (!fs.existsSync(filePath)) return [];
+  return fs.readFileSync(filePath, 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .slice(-maxHistory)
+    .flatMap((line) => {
+      try {
+        const parsed = JSON.parse(line);
+        return parsed && typeof parsed === 'object' ? [parsed] : [];
+      } catch {
+        return [];
+      }
+    });
 }
 
 function normalizeTask(rawTask) {
-  let t = String(rawTask || '').trim().toLowerCase();
-  if (!t) return '';
-  t = t.split(/\s+/)[0];
-  t = t.replace(/^\/+/, '').replace(/\.md$/, '').replace(/^kd_/, 'kd-');
-  return t;
+  return String(rawTask || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+/, '')
+    .replace(/\.md$/, '')
+    .replace(/^kd_/, 'kd-');
 }
 
-function rolesForTask(taskRaw) {
-  const task = normalizeTask(taskRaw);
-  if (!task) return [];
-  if (TASK_ROLE_MAP[task]) return [...TASK_ROLE_MAP[task]];
-  if (task.startsWith('kd-role-')) {
-    const role = task.slice('kd-role-'.length);
-    if (ROLE_MAP[role]) return [role];
-  }
-  for (const [k, roles] of Object.entries(TASK_ROLE_MAP)) {
-    if (task.includes(k)) return [...roles];
-  }
-  return [];
-}
-
-function rolesFromText(raw) {
-  const text = String(raw || '').toLowerCase();
-  if (!text) return [];
-  const out = new Set();
-  for (const [role, hints] of Object.entries(ROLE_HINTS)) {
-    if (hints.some((h) => text.includes(h))) out.add(role);
-  }
-  return [...out];
-}
-
-function roleFromTarget(rawTarget, roster) {
-  const target = String(rawTarget || '').toLowerCase().trim();
-  if (!target) return [];
-  const segments = target.split(/[,\n;|]+/).map((s) => s.trim()).filter(Boolean);
-  const roles = new Set();
-  for (const seg of segments.length ? segments : [target]) {
-    for (const role of Object.keys(ROLE_MAP)) {
-      if (seg === role || seg === `${role}-agent`) roles.add(role);
-    }
-    for (const [role, name] of Object.entries((roster && roster.byRole) || {})) {
-      if (String(name || '').toLowerCase() === seg) roles.add(role);
-    }
-    for (const role of rolesFromText(seg)) roles.add(role);
-  }
-  return [...roles];
-}
-
-function inferAction(rawAction, role) {
-  const a = String(rawAction || '').toLowerCase();
-  if (a.includes('wait') || a.includes('idle')) return 'waiting';
-  if (role === 'engineer') return 'typing';
-  if (role === 'devops') return 'running';
-  return 'working';
-}
-
-function hasRoleActivity(events, role, name, sinceTs) {
-  const id = `${role}-agent`;
-  const lower = String(name || '').toLowerCase();
-  return events.some((e) => {
-    if (eventTime(e) < sinceTs) return false;
-    const eId = String(e.agent_id || '').toLowerCase();
-    const eName = String(e.agent_name || '').toLowerCase();
-    const eRole = String(e.role || '').toLowerCase();
-    return eId === id || eName === lower || eRole.includes(role);
-  });
-}
-
-function isMain(event) {
-  const id = String((event && event.agent_id) || '').toLowerCase();
-  const role = String((event && event.role) || '').toLowerCase();
-  return id === 'main-agent' || role.includes('master') || role.includes('main');
-}
-
-function synthesizeDelegation(events, roster) {
-  if (!Array.isArray(events) || events.length === 0) return [];
-  const synthetic = [];
-  const latestMain = [...events].filter(isMain).sort((a, b) => eventTime(b) - eventTime(a))[0];
-
-  if (latestMain) {
-    const roles = new Set([
-      ...rolesForTask(latestMain.task),
-      ...rolesFromText(latestMain.message),
-      ...rolesFromText(latestMain.action),
-    ]);
-
-    if (roles.size === 0) {
-      const sig = `${latestMain.action || ''} ${latestMain.message || ''}`.toLowerCase();
-      if (/(delegat|consult|ask|help|assist)/.test(sig)) roles.add('analyst');
-    }
-
-    const ts = eventTime(latestMain);
-    for (const role of roles) {
-      const name = (roster.byRole && roster.byRole[role]) || ROLE_MAP[role] || 'Professional Agent';
-      if (hasRoleActivity(events, role, name, ts)) continue;
-      synthetic.push({
-        ts: latestMain.ts || new Date().toISOString(),
-        agent_id: `${role}-agent`,
-        agent_name: name,
-        role: ROLE_MAP[role] || 'Professional Agent',
-        action: inferAction(latestMain.action, role),
-        source: latestMain.source || 'kd',
-        task: latestMain.task || '',
-        message: `${name} handling delegated task`,
-      });
-    }
-  }
-
-  const byRole = new Map();
-  for (const event of events) {
-    if (!event || !event.target_agent_id) continue;
-    const roles = roleFromTarget(event.target_agent_id, roster);
-    for (const role of roles) {
-      const cur = byRole.get(role);
-      if (!cur || eventTime(event) >= eventTime(cur)) byRole.set(role, event);
-    }
-  }
-
-  for (const [role, parent] of byRole.entries()) {
-    const name = (roster.byRole && roster.byRole[role]) || ROLE_MAP[role] || 'Professional Agent';
-    if (hasRoleActivity(events, role, name, eventTime(parent))) continue;
-    synthetic.push({
-      ts: parent.ts || new Date().toISOString(),
-      agent_id: `${role}-agent`,
-      agent_name: name,
-      role: ROLE_MAP[role] || 'Professional Agent',
-      action: inferAction(parent.action, role),
-      source: parent.source || 'kd',
-      task: parent.task || '',
-      message: `${name} responding to main-agent delegation`,
-    });
-  }
-
-  return synthetic.length > 0 ? [...events, ...synthetic] : events;
-}
-
-function readEvents(eventsPath, maxHistory = 1600) {
-  if (!fs.existsSync(eventsPath)) return [];
-  const lines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/).filter(Boolean).slice(-maxHistory);
-  const events = [];
-  for (const line of lines) {
-    try {
-      const parsed = JSON.parse(line);
-      if (parsed && typeof parsed === 'object') events.push(parsed);
-    } catch {
-      // ignore malformed line
-    }
-  }
-  return events;
+function rolesFromTask(task) {
+  return TASK_ROLE_MAP[normalizeTask(task)] || [];
 }
 
 function loadAgentRoster(runtimeDir) {
-  const defaults = {
-    byRole: {
-      analyst: 'Analyst',
-      pm: 'PM',
-      architect: 'Architect',
-      'tech-lead': 'Tech Lead',
-      engineer: 'Engineer',
-      qa: 'QA',
-      security: 'Security',
-      devops: 'DevOps',
-      'release-manager': 'Release Manager',
-    },
-  };
   const rosterPath = path.join(path.dirname(runtimeDir), 'config', 'agents.json');
-  if (!fs.existsSync(rosterPath)) return defaults;
+  const fallback = {
+    main: { id: 'main-agent', name: 'Main Agent', role: 'Master Agent', mention: '@main-agent' },
+    byRole: Object.fromEntries(Object.entries(ROLE_MAP).map(([role, label]) => [role, label])),
+    detailsByRole: Object.fromEntries(
+      Object.entries(ROLE_MAP).map(([role, label]) => [
+        role,
+        {
+          id: `${role}-agent`,
+          role,
+          name: label,
+          mention: `@${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        },
+      ])
+    ),
+  };
+
+  if (!fs.existsSync(rosterPath)) return fallback;
+
   try {
     const parsed = JSON.parse(fs.readFileSync(rosterPath, 'utf8'));
-    const byRole = { ...defaults.byRole };
-    if (parsed && parsed.byRole && typeof parsed.byRole === 'object') {
-      for (const [role, name] of Object.entries(parsed.byRole)) {
-        if (typeof name === 'string' && name.trim()) byRole[role] = name.trim();
-      }
-    }
-    return { byRole };
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    return {
+      main: parsed.main || fallback.main,
+      byRole: { ...fallback.byRole, ...(parsed.byRole || {}) },
+      detailsByRole: { ...fallback.detailsByRole, ...(parsed.detailsByRole || {}) },
+      professional: Array.isArray(parsed.professional) ? parsed.professional : [],
+    };
   } catch {
-    return defaults;
+    return fallback;
   }
 }
 
-function buildState(events, roster) {
-  const stream = synthesizeDelegation(events, roster);
-  const byAgent = new Map();
-  for (const event of stream) {
-    const id = String(event.agent_id || event.agent_name || 'unknown');
-    if (!byAgent.has(id)) {
-      byAgent.set(id, {
+function loadXp(runtimeDir) {
+  const xpPath = path.join(path.dirname(runtimeDir), 'security', 'xp.json');
+  if (!fs.existsSync(xpPath)) return { level: 1, xp: 0, agent: null };
+  try {
+    return JSON.parse(fs.readFileSync(xpPath, 'utf8'));
+  } catch {
+    return { level: 1, xp: 0, agent: null };
+  }
+}
+
+function readStatus(projectRoot) {
+  const statusPath = path.join(projectRoot, 'KD_output', 'status', 'status.md');
+  if (!fs.existsSync(statusPath)) return { text: '', updated_at: null };
+  const stat = fs.statSync(statusPath);
+  return {
+    text: fs.readFileSync(statusPath, 'utf8'),
+    updated_at: stat.mtime.toISOString(),
+  };
+}
+
+function extractNextCommand(text) {
+  const match = String(text || '').match(/Next command:\s*(\/kd-[\w-]+)/i);
+  return match ? match[1] : null;
+}
+
+function buildProjectSummary(projectRoot, roster, xp, transcripts) {
+  const status = readStatus(projectRoot);
+  const latestTranscript = transcripts[transcripts.length - 1] || null;
+  return {
+    main_agent: roster.main && roster.main.name ? roster.main.name : 'Main Agent',
+    current_stage: latestTranscript && latestTranscript.stage ? latestTranscript.stage : null,
+    recent_command: latestTranscript && latestTranscript.command ? latestTranscript.command : null,
+    next_command: extractNextCommand(status.text),
+    level: Number.isFinite(xp.level) ? xp.level : 1,
+    xp: Number.isFinite(xp.xp) ? xp.xp : 0,
+    status_excerpt: String(status.text || '').trim().slice(0, 320),
+    updated_at: (latestTranscript && latestTranscript.ts) || status.updated_at || new Date().toISOString(),
+  };
+}
+
+function buildAgentRows(events, transcripts, roster, xp) {
+  const rows = new Map();
+
+  const ensure = (id, name, role) => {
+    if (!rows.has(id)) {
+      rows.set(id, {
         id,
-        name: String(event.agent_name || id),
-        role: String(event.role || '-'),
-        actions: {},
-        total: 0,
-        source: String(event.source || '-'),
+        name,
+        role,
+        total_events: 0,
+        total_messages: 0,
+        last_action: 'idle',
+        last_task: '',
+        last_message: '',
+        last_ts: null,
+        mention: null,
+        level: 1,
+        xp: 0,
       });
     }
-    const a = byAgent.get(id);
-    const action = String(event.action || 'unknown');
-    a.name = String(event.agent_name || a.name);
-    a.role = String(event.role || a.role);
-    a.source = String(event.source || a.source);
-    a.total += 1;
-    a.last_ts = event.ts || a.last_ts;
-    a.last_action = action;
-    a.last_task = String(event.task || '');
-    a.last_message = String(event.message || '');
-    a.actions[action] = (a.actions[action] || 0) + 1;
+    return rows.get(id);
+  };
+
+  const mainRow = ensure('main-agent', roster.main.name || 'Main Agent', 'Master Agent');
+  mainRow.mention = roster.main.mention || '@main-agent';
+  mainRow.level = Number.isFinite(xp.level) ? xp.level : 1;
+  mainRow.xp = Number.isFinite(xp.xp) ? xp.xp : 0;
+
+  for (const [role, details] of Object.entries(roster.detailsByRole || {})) {
+    const row = ensure(`${role}-agent`, details.name || ROLE_MAP[role] || role, ROLE_MAP[role] || role);
+    row.mention = details.mention || null;
   }
-  const agents = [...byAgent.values()].sort((a, b) => {
+
+  for (const event of events) {
+    const id = String(event.agent_id || 'unknown');
+    const row = ensure(id, String(event.agent_name || id), String(event.role || '-'));
+    row.name = String(event.agent_name || row.name);
+    row.role = String(event.role || row.role);
+    row.total_events += 1;
+    row.last_action = String(event.action || row.last_action);
+    row.last_task = String(event.task || row.last_task);
+    row.last_message = String(event.message || row.last_message);
+    row.last_ts = event.ts || row.last_ts;
+  }
+
+  for (const line of transcripts) {
+    const id = String(line.speaker_id || 'unknown');
+    const row = ensure(id, String(line.speaker_name || id), String(line.speaker_role || '-'));
+    row.name = String(line.speaker_name || row.name);
+    row.role = String(line.speaker_role || row.role);
+    row.total_messages += 1;
+    row.last_task = String(line.command || row.last_task);
+    row.last_message = String(line.text || row.last_message);
+    row.last_ts = line.ts || row.last_ts;
+  }
+
+  return [...rows.values()].sort((a, b) => {
     if (a.id === 'main-agent' && b.id !== 'main-agent') return -1;
     if (b.id === 'main-agent' && a.id !== 'main-agent') return 1;
-    return b.total - a.total;
+    return eventTime({ ts: b.last_ts }) - eventTime({ ts: a.last_ts });
   });
+}
+
+function buildState(events, transcripts, roster, summary, xp) {
   return {
-    total_events: stream.length,
-    agents,
-    recent: stream.slice(-120).reverse(),
+    total_events: events.length,
+    total_transcripts: transcripts.length,
+    agents: buildAgentRows(events, transcripts, roster, xp),
+    recent: events.slice(-120).reverse(),
+    recent_transcripts: transcripts.slice(-40).reverse(),
+    roster,
+    project_summary: summary,
     updated_at: new Date().toISOString(),
   };
 }
@@ -330,10 +275,7 @@ function mimeType(filePath) {
     case '.png': return 'image/png';
     case '.jpg':
     case '.jpeg': return 'image/jpeg';
-    case '.webp': return 'image/webp';
-    case '.bmp': return 'image/bmp';
     case '.svg': return 'image/svg+xml';
-    case '.ttf': return 'font/ttf';
     case '.woff': return 'font/woff';
     case '.woff2': return 'font/woff2';
     default: return 'application/octet-stream';
@@ -350,7 +292,6 @@ function safeStaticPath(rootDir, requestPath) {
   }
   const resolvedRoot = path.resolve(rootDir);
   const resolvedPath = path.resolve(resolvedRoot, rel);
-
   if (!resolvedPath.startsWith(resolvedRoot + path.sep) && resolvedPath !== path.join(resolvedRoot, 'index.html')) {
     return null;
   }
@@ -365,15 +306,15 @@ function htmlFallback() {
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KD Pixel Web</title>
   <style>
-    body{margin:0;padding:20px;background:#0a1022;color:#d7e6ff;font-family:Consolas,monospace}
-    .box{max-width:760px;border:1px solid #43639b;padding:16px;background:#101934}
+    body{margin:0;padding:20px;background:#08110d;color:#dbf7df;font-family:Consolas,monospace}
+    .box{max-width:760px;border:1px solid #2d5e3c;padding:16px;background:#102116}
     code{color:#9fd0ff}
   </style>
 </head>
 <body>
   <div class="box">
     <h3>KD Pixel web bundle not ready</h3>
-    <p>Run <code>kd-panel-install.bat</code> to package/install the native panel bundle.</p>
+    <p>The observer API is live. Package the panel bundle if you want the native visual shell.</p>
   </div>
 </body>
 </html>`;
@@ -393,16 +334,18 @@ async function main() {
   const scriptDir = path.dirname(process.argv[1] || process.cwd());
   const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
   const eventsPath = path.join(runtimeDir, 'events.jsonl');
+  const transcriptsPath = path.join(runtimeDir, 'transcripts.jsonl');
+  const projectRoot = path.dirname(path.dirname(runtimeDir));
   const roster = loadAgentRoster(runtimeDir);
+  const xp = loadXp(runtimeDir);
 
   fs.mkdirSync(runtimeDir, { recursive: true });
   if (!fs.existsSync(eventsPath)) fs.writeFileSync(eventsPath, '', 'utf8');
+  if (!fs.existsSync(transcriptsPath)) fs.writeFileSync(transcriptsPath, '', 'utf8');
 
-  const krackedDir = path.dirname(runtimeDir);
-  const panelToolDir = path.join(krackedDir, 'tools', 'vscode-kd-pixel-panel');
+  const panelToolDir = path.join(path.dirname(runtimeDir), 'tools', 'vscode-kd-pixel-panel');
   const panelWebRoot = path.join(panelToolDir, 'dist', 'webview');
   const layoutPath = path.join(runtimeDir, 'layout.json');
-
   const panelReady = fs.existsSync(path.join(panelWebRoot, 'index.html'));
 
   function readLayout() {
@@ -410,13 +353,11 @@ async function main() {
       try {
         return JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
       } catch {
-        // fallback to bundled layout
+        // ignore
       }
     }
-
     const defaultLayoutPath = path.join(panelWebRoot, 'assets', 'default-layout.json');
     if (!fs.existsSync(defaultLayoutPath)) return null;
-
     try {
       const parsed = JSON.parse(fs.readFileSync(defaultLayoutPath, 'utf8'));
       fs.writeFileSync(layoutPath, JSON.stringify(parsed, null, 2), 'utf8');
@@ -427,46 +368,74 @@ async function main() {
   }
 
   const server = http.createServer((req, res) => {
-    const url = req.url || '/';
+    const url = new URL(req.url || '/', 'http://localhost');
+    const events = readJsonLines(eventsPath, 1600);
+    const transcripts = readJsonLines(transcriptsPath, 1600);
+    const summary = buildProjectSummary(projectRoot, roster, xp, transcripts);
+    const state = buildState(events, transcripts, roster, summary, xp);
 
-    if (url.startsWith('/api/state')) {
-      const state = buildState(readEvents(eventsPath), roster);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-      });
-      res.end(JSON.stringify(state));
-      return;
-    }
-
-    if (url.startsWith('/api/health')) {
+    if (url.pathname === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ ok: true, service: 'kd-pixel-web', ts: new Date().toISOString() }));
       return;
     }
 
-    if (url === '/api/layout' && req.method === 'GET') {
+    if (url.pathname === '/api/state') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(state));
+      return;
+    }
+
+    if (url.pathname === '/api/roster') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(roster));
+      return;
+    }
+
+    if (url.pathname === '/api/project-summary') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(summary));
+      return;
+    }
+
+    if (url.pathname === '/api/transcripts/recent') {
+      const limit = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+      const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : 20;
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ transcripts: transcripts.slice(-safeLimit).reverse() }));
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/transcripts/')) {
+      const runId = decodeURIComponent(url.pathname.slice('/api/transcripts/'.length));
+      const items = transcripts.filter((line) => String(line.run_id || '') === runId);
+      if (items.length === 0) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Transcript not found', run_id: runId }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ run_id: runId, transcripts: items }));
+      return;
+    }
+
+    if (url.pathname === '/api/layout' && req.method === 'GET') {
       const layout = readLayout();
       if (!layout) {
         res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ ok: false, reason: 'layout not found' }));
         return;
       }
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(layout));
       return;
     }
 
-    if (url === '/api/layout' && req.method === 'POST') {
+    if (url.pathname === '/api/layout' && req.method === 'POST') {
       let raw = '';
       req.on('data', (chunk) => {
         raw += chunk.toString('utf8');
-        if (raw.length > 4 * 1024 * 1024) {
-          req.destroy();
-        }
+        if (raw.length > 4 * 1024 * 1024) req.destroy();
       });
       req.on('end', () => {
         try {
@@ -474,9 +443,9 @@ async function main() {
           fs.writeFileSync(layoutPath, JSON.stringify(parsed, null, 2), 'utf8');
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ ok: true }));
-        } catch (err) {
+        } catch (error) {
           res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ ok: false, reason: err && err.message ? err.message : 'invalid json' }));
+          res.end(JSON.stringify({ ok: false, reason: error && error.message ? error.message : 'invalid json' }));
         }
       });
       return;
@@ -488,7 +457,7 @@ async function main() {
       return;
     }
 
-    const staticFile = safeStaticPath(panelWebRoot, url);
+    const staticFile = safeStaticPath(panelWebRoot, url.pathname);
     if (!staticFile || !fs.existsSync(staticFile) || !fs.statSync(staticFile).isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not found');
@@ -502,40 +471,33 @@ async function main() {
         'Cache-Control': /\.json$/i.test(staticFile) ? 'no-store' : 'public, max-age=300',
       });
       res.end(data);
-    } catch (err) {
+    } catch (error) {
       res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end(`Failed to read file: ${err && err.message ? err.message : 'unknown error'}`);
+      res.end(`Failed to read file: ${error && error.message ? error.message : 'unknown error'}`);
     }
   });
 
   let activePort = requestedPort;
   let retries = 0;
-  const maxRetries = 20;
-
-  server.on('error', (err) => {
-    if (err && err.code === 'EADDRINUSE' && retries < maxRetries && activePort < 65535) {
-      const nextPort = activePort + 1;
+  server.on('error', (error) => {
+    if (error && error.code === 'EADDRINUSE' && retries < 20 && activePort < 65535) {
       retries += 1;
-      process.stdout.write(`[KD][warn] Port ${activePort} already in use. Retrying on ${nextPort}...\n`);
-      activePort = nextPort;
-      setTimeout(() => {
-        server.listen(activePort);
-      }, 80);
+      activePort += 1;
+      setTimeout(() => server.listen(activePort), 80);
       return;
     }
-    process.stderr.write(`[KD] pixel-web error: ${err && err.message ? err.message : String(err)}\n`);
+    process.stderr.write(`[KD] pixel-web error: ${error && error.message ? error.message : String(error)}\n`);
     process.exit(1);
   });
 
   server.listen(activePort, () => {
     const url = `http://localhost:${activePort}`;
     process.stdout.write(`[KD] KD Pixel web observer running at ${url}\n`);
-    process.stdout.write('[KD] Press Ctrl+C to stop.\n');
     if (autoOpen) openUrl(url);
   });
 }
 
-main().catch((err) => {
-  process.stderr.write(`[KD] pixel-web error: ${err && err.message ? err.message : String(err)}\n`);
+main().catch((error) => {
+  process.stderr.write(`[KD] pixel-web error: ${error && error.message ? error.message : String(error)}\n`);
   process.exit(1);
 });

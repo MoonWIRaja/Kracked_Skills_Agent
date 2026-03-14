@@ -1,6 +1,6 @@
 # Status Projek: [Nama Projek]
 *Terakhir dikemas kini: [timestamp]*
-*Dikemas kini oleh: Amad*
+*Dikemas kini oleh: [Nama Agen Utama]*
 
 ## 📊 Ringkasan
 - **Skala**: [SMALL/STANDARD/DEEP]

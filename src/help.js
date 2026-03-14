@@ -13,7 +13,7 @@ function showHelp() {
   console.log('');
   console.log(c('brightWhite', '  COMMANDS:'));
   console.log('');
-  console.log(`    ${c('cyan', 'install')}     Install KD into current project (default)`);
+  console.log(`    ${c('cyan', 'install')}     Open install menu (Kracked Skills / Pixel Panel / Both)`);
   console.log(`    ${c('cyan', 'update')}      Update existing KD installation`);
   console.log(`    ${c('cyan', 'uninstall')}   Remove KD from project`);
   console.log(`    ${c('cyan', 'stats')}       Show XP, level, and agent stats`);
@@ -30,7 +30,7 @@ function showHelp() {
   console.log(`    ${c('yellow', '-l, --language')}  ${c('gray', '<lang>')}    Language: EN, MS, or custom`);
   console.log(`    ${c('yellow', '-t, --tools')}     ${c('gray', '<list>')}    IDE tools (comma-separated)`);
   console.log(`    ${c('yellow', '-n, --name')}      ${c('gray', '<name>')}    Project name`);
-  console.log(`    ${c('yellow', '-a, --agent')}     ${c('gray', '<name>')}    Main agent display name (default: Amad)`);
+  console.log(`    ${c('yellow', '-a, --agent')}     ${c('gray', '<name>')}    Main agent display name (required for install)`);
   console.log(`    ${c('yellow', '--panel')}                    Auto-install native Pixel panel after install`);
   console.log(`    ${c('yellow', '--no-panel')}                 Skip native panel auto-install`);
   console.log(`    ${c('yellow', '--interval')}                 Observer refresh interval in ms`);
@@ -43,7 +43,7 @@ function showHelp() {
   console.log('');
   console.log(c('brightWhite', '  EXAMPLES:'));
   console.log('');
-  console.log(`    ${c('gray', '# Interactive install')}`);
+  console.log(`    ${c('gray', '# Interactive install menu')}`);
   console.log(`    ${c('cyan', 'npx kracked-skills-agent install')}`);
   console.log('');
   console.log(`    ${c('gray', '# Non-interactive (CI/CD)')}`);

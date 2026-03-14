@@ -1,29 +1,19 @@
 ---
 skill: database
-version: 1.0.0
-language: [EN, MS]
-triggers: ["database", "db", "sql", "nosql", "schema", "migration"]
-agents: ["architect", "engineer"]
-confidence_default: HIGH
-xp_reward: 25
+version: 2.0.0
+agents: ["backend-api", "architect"]
 ---
 
-# Database Patterns
+# Database Skill
 
-## Schema Design
-- Normalize to 3NF, denormalize for performance
-- Use UUIDs for public IDs, auto-increment for internal
-- Add created_at, updated_at timestamps
-- Index frequently queried columns
+## Goals
+- pilih model data yang padan dengan use case
+- jelaskan entity relationship dan indexing
+- nyatakan migration dan environment strategy
 
-## SQL Best Practices
-- Parameterized queries (prevent injection)
-- Use migrations for schema changes
-- Connection pooling
-- Transaction isolation levels
-
-## Anti-Patterns
-- ❌ Storing JSON blobs instead of proper relations
-- ❌ Missing indexes on foreign keys
-- ❌ N+1 query problems
-- ❌ No backup strategy
+## Minimum Output
+- entity list
+- relationships
+- indexes
+- migration notes
+- production/test/dev considerations

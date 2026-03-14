@@ -1,0 +1,13 @@
+# Release Notes Template
+
+## Highlights
+- ...
+
+## Technical Changes
+- ...
+
+## Known Issues
+- ...
+
+## Next Watch Items
+- ...

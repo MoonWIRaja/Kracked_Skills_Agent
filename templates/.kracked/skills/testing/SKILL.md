@@ -1,34 +1,17 @@
 ---
 skill: testing
-version: 1.0.0
-language: [EN, MS]
-triggers: ["test", "ujian", "tdd", "coverage", "jest", "vitest"]
+version: 2.0.0
 agents: ["qa", "engineer"]
-confidence_default: HIGH
-xp_reward: 25
 ---
 
-# Testing Patterns
+# Testing Skill
 
-## TDD Cycle
-1. **RED** — Write failing test
-2. **GREEN** — Write minimal code to pass
-3. **REFACTOR** — Clean up while keeping tests green
+## Goals
+- pecahkan strategy kepada unit, integration, e2e, manual
+- jelaskan gaps, flakiness, dan regression risk
 
-## Test Types
-- **Unit**: Isolated function testing (fastest)
-- **Integration**: Component interaction testing
-- **E2E**: Full user flow testing (slowest)
-- Coverage target: ≥80%
-
-## Best Practices
-- Test behavior, not implementation
-- One assertion per concept
-- Descriptive test names
-- Setup/teardown for shared state
-
-## Anti-Patterns
-- ❌ Testing implementation details
-- ❌ Flaky tests (non-deterministic)
-- ❌ Skipping edge cases
-- ❌ No test for error paths
+## Minimum Output
+- test inventory
+- target behavior
+- missing coverage
+- suggested next test step

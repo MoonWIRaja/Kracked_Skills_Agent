@@ -30,24 +30,26 @@ const ROLE_TITLES = {
   security: 'Security',
   devops: 'DevOps',
   'release-manager': 'Release Manager',
+  'ui-ux-frontend': 'UI/UX Frontend',
+  'backend-api': 'Backend/API',
 };
 
 const TASK_DELEGATION_MAP = {
-  'kd-analyze': ['analyst'],
-  'kd-brainstorm': ['analyst', 'pm'],
+  'kd-analyze': ['analyst', 'ui-ux-frontend', 'backend-api'],
+  'kd-brainstorm': ['analyst', 'pm', 'ui-ux-frontend', 'backend-api', 'architect', 'security', 'devops'],
   'kd-prd': ['pm'],
-  'kd-arch': ['architect', 'security'],
-  'kd-story': ['tech-lead'],
-  'kd-dev-story': ['engineer'],
+  'kd-arch': ['architect', 'ui-ux-frontend', 'backend-api', 'security', 'devops'],
+  'kd-story': ['tech-lead', 'pm'],
+  'kd-dev-story': ['engineer', 'tech-lead', 'qa'],
   'kd-code-review': ['qa', 'security'],
   'kd-deploy': ['devops'],
   'kd-release': ['release-manager'],
-  'kd-api-design': ['architect'],
-  'kd-db-schema': ['architect'],
-  'kd-test': ['qa'],
-  'kd-security-audit': ['security'],
+  'kd-api-design': ['backend-api', 'architect', 'security'],
+  'kd-db-schema': ['backend-api', 'architect'],
+  'kd-test': ['qa', 'engineer'],
+  'kd-security-audit': ['security', 'architect', 'qa'],
   'kd-refactor': ['tech-lead', 'engineer'],
-  'kd-sprint-planning': ['pm', 'tech-lead'],
+  'kd-sprint-planning': ['pm', 'tech-lead', 'engineer'],
   'kd-sprint-review': ['pm', 'qa'],
   'kd-validate': ['qa'],
 };
@@ -62,6 +64,8 @@ const ROLE_HINTS = {
   security: ['security', 'audit', 'owasp', 'vulnerability'],
   devops: ['devops', 'deploy', 'deployment', 'ci/cd', 'pipeline'],
   'release-manager': ['release manager', 'release', 'changelog'],
+  'ui-ux-frontend': ['ui', 'ux', 'frontend', 'wireframe', 'theme', 'layout'],
+  'backend-api': ['backend', 'api', 'endpoint', 'service', 'schema', 'database'],
 };
 
 let provider = null;
@@ -211,6 +215,8 @@ class KDPanelViewProvider {
     if (layout) {
       webview.postMessage({ type: 'layoutLoaded', layout });
     }
+
+    this.pushOverlayState();
   }
 
   getWebviewHtml() {
@@ -341,6 +347,25 @@ class KDPanelViewProvider {
       });
 
     }
+
+    this.pushOverlayState();
+  }
+
+  getTranscriptsPath(root) {
+    return root ? path.join(root, '.kracked', 'runtime', 'transcripts.jsonl') : null;
+  }
+
+  pushOverlayState() {
+    if (!this.view || !this.ready) return;
+    const root = this.getWorkspaceRoot();
+    const roster = loadAgentRoster(root);
+    const transcripts = readTranscripts(this.getTranscriptsPath(root));
+    const summary = buildProjectSummary(root, transcripts, roster);
+
+    this.view.webview.postMessage({ type: 'rosterLoaded', roster });
+    this.view.webview.postMessage({ type: 'transcriptBatch', transcripts: transcripts.slice(-24).reverse() });
+    this.view.webview.postMessage({ type: 'commandState', summary });
+    this.view.webview.postMessage({ type: 'xpUpdated', xp: summary.xp, level: summary.level });
   }
 
   buildAgentSnapshot() {
@@ -498,6 +523,54 @@ function readEvents(eventsPath) {
   }
 }
 
+function readTranscripts(transcriptsPath) {
+  if (!transcriptsPath || !fs.existsSync(transcriptsPath)) return [];
+  try {
+    const raw = fs.readFileSync(transcriptsPath, 'utf8');
+    if (!raw.trim()) return [];
+    return raw
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-MAX_EVENTS)
+      .flatMap((line) => {
+        try {
+          const parsed = JSON.parse(line);
+          return parsed && typeof parsed === 'object' ? [parsed] : [];
+        } catch {
+          return [];
+        }
+      });
+  } catch {
+    return [];
+  }
+}
+
+function readXp(root) {
+  if (!root) return { level: 1, xp: 0 };
+  const xpPath = path.join(root, '.kracked', 'security', 'xp.json');
+  if (!fs.existsSync(xpPath)) return { level: 1, xp: 0 };
+  try {
+    return JSON.parse(fs.readFileSync(xpPath, 'utf8'));
+  } catch {
+    return { level: 1, xp: 0 };
+  }
+}
+
+function readStatusSummary(root) {
+  if (!root) return { text: '', updated_at: null };
+  const statusPath = path.join(root, 'KD_output', 'status', 'status.md');
+  if (!fs.existsSync(statusPath)) return { text: '', updated_at: null };
+  return {
+    text: fs.readFileSync(statusPath, 'utf8'),
+    updated_at: fs.statSync(statusPath).mtime.toISOString(),
+  };
+}
+
+function extractNextCommand(text) {
+  const match = String(text || '').match(/Next command:\s*(\/kd-[\w-]+)/i);
+  return match ? match[1] : null;
+}
+
 function eventTime(event) {
   const ts = new Date(event.ts || 0).getTime();
   return Number.isFinite(ts) ? ts : 0;
@@ -532,6 +605,12 @@ function getLatestEventsByAgent(events) {
 function loadAgentRoster(root) {
   const defaults = {
     mainName: 'Main Agent',
+    main: {
+      id: 'main-agent',
+      name: 'Main Agent',
+      role: 'Master Agent',
+      mention: '@main-agent',
+    },
     byRole: {
       analyst: 'Analyst',
       pm: 'PM',
@@ -542,7 +621,10 @@ function loadAgentRoster(root) {
       security: 'Security',
       devops: 'DevOps',
       'release-manager': 'Release Manager',
+      'ui-ux-frontend': 'UI/UX Frontend',
+      'backend-api': 'Backend/API',
     },
+    detailsByRole: {},
   };
 
   if (!root) return defaults;
@@ -564,10 +646,50 @@ function loadAgentRoster(root) {
       ? parsed.main.name.trim() || defaults.mainName
       : defaults.mainName;
 
-    return { mainName, byRole };
+    const detailsByRole = {};
+    for (const [role, name] of Object.entries(byRole)) {
+      const details = parsed.detailsByRole && parsed.detailsByRole[role] ? parsed.detailsByRole[role] : null;
+      detailsByRole[role] = {
+        id: `${role}-agent`,
+        role,
+        name,
+        mention: details && typeof details.mention === 'string' ? details.mention : `@${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      };
+    }
+
+    return {
+      mainName,
+      main: {
+        id: 'main-agent',
+        name: mainName,
+        role: 'Master Agent',
+        mention:
+          parsed.main && typeof parsed.main === 'object' && typeof parsed.main.mention === 'string'
+            ? parsed.main.mention
+            : '@main-agent',
+      },
+      byRole,
+      detailsByRole,
+    };
   } catch {
     return defaults;
   }
+}
+
+function buildProjectSummary(root, transcripts, roster) {
+  const status = readStatusSummary(root);
+  const latest = transcripts[transcripts.length - 1] || null;
+  const xp = readXp(root);
+  return {
+    main_agent: roster && roster.main && roster.main.name ? roster.main.name : 'Main Agent',
+    current_stage: latest && latest.stage ? latest.stage : null,
+    recent_command: latest && latest.command ? latest.command : null,
+    next_command: extractNextCommand(status.text),
+    level: Number.isFinite(xp.level) ? xp.level : 1,
+    xp: Number.isFinite(xp.xp) ? xp.xp : 0,
+    status_excerpt: String(status.text || '').trim().slice(0, 280),
+    updated_at: (latest && latest.ts) || status.updated_at || new Date().toISOString(),
+  };
 }
 
 function normalizeTask(taskRaw) {

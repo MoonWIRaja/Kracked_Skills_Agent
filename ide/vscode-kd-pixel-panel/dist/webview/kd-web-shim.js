@@ -184,6 +184,21 @@
     const state = await fetchJson(STATE_ENDPOINT);
     if (!state || !Array.isArray(state.agents)) return;
 
+    if (state.roster) {
+      dispatchToUi({ type: 'rosterLoaded', roster: state.roster });
+    }
+    if (Array.isArray(state.recent_transcripts)) {
+      dispatchToUi({ type: 'transcriptBatch', transcripts: state.recent_transcripts });
+    }
+    if (state.project_summary) {
+      dispatchToUi({ type: 'commandState', summary: state.project_summary });
+      dispatchToUi({
+        type: 'xpUpdated',
+        xp: Number(state.project_summary.xp) || 0,
+        level: Number(state.project_summary.level) || 1,
+      });
+    }
+
     const uiAgents = state.agents.map((agent) => ensureUiAgentState(agent));
     const currentIds = new Set(uiAgents.map((agent) => agent.id));
 

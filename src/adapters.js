@@ -16,18 +16,6 @@ const fs = require('fs');
 const path = require('path');
 
 const SUPPORTED_IDES = ['codex', 'antigravity', 'cursor', 'opencode', 'kilocode', 'cline', 'claude-code'];
-const LEGACY_AGENT_NAMES = {
-  main: 'Amad',
-  analyst: 'Ara',
-  pm: 'Paan',
-  architect: 'Adi',
-  'tech-lead': 'Teja',
-  engineer: 'Ezra',
-  qa: 'Qila',
-  security: 'Sari',
-  devops: 'Dian',
-  'release-manager': 'Rina',
-};
 
 function toSlug(value) {
   return String(value || '')
@@ -46,28 +34,7 @@ function replaceWholeWord(text, from, to) {
 }
 
 function personalizeCommands(commands, context = {}) {
-  const mainAgentName = context.mainAgentName || LEGACY_AGENT_NAMES.main;
-  const roster = context.roster && context.roster.byRole ? context.roster.byRole : {};
-  const replacements = new Map([
-    [LEGACY_AGENT_NAMES.main, mainAgentName],
-    [LEGACY_AGENT_NAMES.analyst, roster.analyst],
-    [LEGACY_AGENT_NAMES.pm, roster.pm],
-    [LEGACY_AGENT_NAMES.architect, roster.architect],
-    [LEGACY_AGENT_NAMES['tech-lead'], roster['tech-lead']],
-    [LEGACY_AGENT_NAMES.engineer, roster.engineer],
-    [LEGACY_AGENT_NAMES.qa, roster.qa],
-    [LEGACY_AGENT_NAMES.security, roster.security],
-    [LEGACY_AGENT_NAMES.devops, roster.devops],
-    [LEGACY_AGENT_NAMES['release-manager'], roster['release-manager']],
-  ]);
-
-  return commands.map((command) => {
-    let description = command.description;
-    for (const [from, to] of replacements.entries()) {
-      description = replaceWholeWord(description, from, to);
-    }
-    return { ...command, description };
-  });
+  return commands.map((command) => ({ ...command }));
 }
 
 /**
@@ -83,7 +50,7 @@ function getCommandFiles() {
     },
     {
       name: 'kd-new',
-      description: 'Initialize a new KD project workspace. Runs Scale Assessment and creates .kracked/ structure.',
+      description: 'Deprecated alias to /kd-analyze. Starts the official project entry workflow and points the user to the modern flow.',
       taskRef: '{project-root}/.kracked/workflows/KD-NEW.md',
     },
     {
@@ -102,99 +69,104 @@ function getCommandFiles() {
       taskRef: '{project-root}/.kracked/workflows/KD-status.md',
     },
     {
+      name: 'kd-roster',
+      description: 'Show the full main-agent and sub-agent roster, roles, and valid @mention handles for direct chat.',
+      taskRef: '{project-root}/.kracked/workflows/KD-roster.md',
+    },
+    {
       name: 'kd-analyze',
-      description: '[ANALYST] Start Discovery phase â€” Scale Assessment, risk analysis, and stakeholder identification.',
+      description: '[MAIN+ANALYST] Official entry command â€” scan the current project, explain what exists, and route to /kd-brainstorm.',
       taskRef: '{project-root}/.kracked/workflows/KD-analyze.md',
     },
     {
       name: 'kd-brainstorm',
-      description: '[ANALYST+PM] Brainstorming session â€” generate 3-5 approaches with scoring and consensus.',
+      description: '[MAIN+ROUNDTABLE] Live discovery interview â€” user Q&A, sub-agent discussion, and detailed brainstorm artifacts.',
       taskRef: '{project-root}/.kracked/workflows/KD-brainstorm.md',
     },
     {
       name: 'kd-prd',
-      description: '[PM] Generate full PRD â€” personas, metrics, risks, acceptance criteria.',
+      description: '[PM+MAIN] Generate a formal PRD with agent transcript, scope, metrics, acceptance criteria, and traceability.',
       taskRef: '{project-root}/.kracked/workflows/KD-prd.md',
     },
     {
       name: 'kd-arch',
-      description: '[ARCH+SEC] Architecture design â€” tech stack, system diagrams, API design, security review.',
+      description: '[ARCH+UI+API+SEC+DEVOPS] Architecture roundtable â€” tech stack, system diagrams, API design, security, deployment.',
       taskRef: '{project-root}/.kracked/workflows/KD-arch.md',
     },
     {
       name: 'kd-story',
-      description: '[TL] Break epic into user stories with acceptance criteria.',
+      description: '[TL+PM] Break architecture into epics and user stories with acceptance criteria and execution order.',
       taskRef: '{project-root}/.kracked/workflows/KD-story.md',
     },
     {
+      name: 'kd-sprint-planning',
+      description: '[PM+TL] Build sprint plan â€” select stories, set priorities, dependencies, owners, and next execution order.',
+      taskRef: '{project-root}/.kracked/workflows/KD-sprint-planning.md',
+    },
+    {
       name: 'kd-dev-story',
-      description: '[ENG] Implement a user story using TDD approach â€” tests first, then code.',
+      description: '[ENG+MAIN] Implement a selected user story with transcript logging, artifacts, and TDD-first delivery.',
       taskRef: '{project-root}/.kracked/workflows/KD-dev-story.md',
     },
     {
+      name: 'kd-test',
+      description: '[QA] Generate and evaluate the current test suite â€” unit, integration, e2e, and coverage gaps.',
+      taskRef: '{project-root}/.kracked/workflows/KD-test.md',
+    },
+    {
+      name: 'kd-refactor',
+      description: '[TL+ENG] Guided refactoring with tech lead oversight, quality goals, and a return path to testing.',
+      taskRef: '{project-root}/.kracked/workflows/KD-refactor.md',
+    },
+    {
       name: 'kd-code-review',
-      description: '[QA+SEC] Systematic code review â€” quality, security, test coverage.',
+      description: '[QA+SEC+ARCH] Systematic code review â€” quality, security, architecture fit, and test coverage.',
       taskRef: '{project-root}/.kracked/workflows/KD-code-review.md',
     },
     {
+      name: 'kd-validate',
+      description: '[PM+QA] Validate the implementation against requirements, acceptance criteria, and expected outputs.',
+      taskRef: '{project-root}/.kracked/workflows/KD-validate.md',
+    },
+    {
       name: 'kd-deploy',
-      description: '[DEVOPS] Generate deployment plan â€” CI/CD, preflight check, rollback plan.',
+      description: '[DEVOPS+SEC] Generate deployment plan â€” CI/CD, preflight, rollback plan, and operational risks.',
       taskRef: '{project-root}/.kracked/workflows/KD-deploy.md',
     },
     {
       name: 'kd-release',
-      description: '[RM] Create release notes, update changelog, sync knowledge to global memory.',
+      description: '[RM] Create release notes, update changelog, sync knowledge, and hand off to review/retro flow.',
       taskRef: '{project-root}/.kracked/workflows/KD-release.md',
     },
     {
-      name: 'kd-sprint-planning',
-      description: 'Initialize sprint tracking â€” select stories, set goals, assign to agents.',
-      taskRef: '{project-root}/.kracked/workflows/KD-sprint-planning.md',
-    },
-    {
       name: 'kd-sprint-review',
-      description: 'Review current sprint progress â€” completed stories, remaining work.',
+      description: '[PM+TL] Review current sprint progress â€” completed stories, demos, and remaining work.',
       taskRef: '{project-root}/.kracked/workflows/KD-sprint-review.md',
     },
     {
-      name: 'kd-retrospective',
-      description: 'Run retrospective â€” what went well, what needs improvement, action items.',
-      taskRef: '{project-root}/.kracked/workflows/KD-retrospective.md',
-    },
-    {
-      name: 'kd-refactor',
-      description: '[TL+ENG] Guided refactoring with tech lead oversight.',
-      taskRef: '{project-root}/.kracked/workflows/KD-refactor.md',
-    },
-    {
-      name: 'kd-validate',
-      description: 'Validate that output meets requirements â€” run validation block.',
-      taskRef: '{project-root}/.kracked/workflows/KD-validate.md',
-    },
-    {
       name: 'kd-role-analyst',
-      description: 'Activate full Analyst mode â€” become [ANALYST] Ara for deep analysis.',
+      description: 'Compatibility shim for legacy Analyst mode â€” redirect users to @<analyst-name> or /kd-roster.',
       taskRef: '{project-root}/.kracked/workflows/KD-role-analyst.md',
     },
     {
       name: 'kd-api-design',
-      description: '[ARCH] Design robust REST/GraphQL endpoints with security best practices.',
+      description: '[BACKEND-API+ARCH] Design REST/GraphQL endpoints, contracts, auth, and service boundaries.',
       taskRef: '{project-root}/.kracked/workflows/KD-api-design.md',
-    },
-    {
-      name: 'kd-db-schema',
-      description: '[ARCH] Generate and optimize database schema design.',
-      taskRef: '{project-root}/.kracked/workflows/KD-db-schema.md',
-    },
-    {
-      name: 'kd-test',
-      description: '[QA] Generate test suite for current code â€” unit, integration, e2e.',
-      taskRef: '{project-root}/.kracked/workflows/KD-test.md',
     },
     {
       name: 'kd-security-audit',
       description: '[SEC] Full security audit â€” OWASP Top 10, dependency check, with XP reward.',
       taskRef: '{project-root}/.kracked/workflows/KD-security-audit.md',
+    },
+    {
+      name: 'kd-db-schema',
+      description: '[BACKEND-API+ARCH] Generate and optimize database schema design, relationships, and environment strategy.',
+      taskRef: '{project-root}/.kracked/workflows/KD-db-schema.md',
+    },
+    {
+      name: 'kd-retrospective',
+      description: '[MAIN+ROUNDTABLE] Run retrospective â€” what went well, what needs improvement, and action items.',
+      taskRef: '{project-root}/.kracked/workflows/KD-retrospective.md',
     },
   ];
 }
@@ -215,13 +187,23 @@ Read the entire workflow file at: ${cmd.taskRef}
 Follow all instructions in the workflow file exactly as written.
 Also load the system prompt from: {project-root}/.kracked/prompts/system-prompt.md
 Also load main agent profile from: {project-root}/.kracked/config/main-agent.json
+Also load agent roster from: {project-root}/.kracked/config/agents.json
+Also load language settings from: {project-root}/.kracked/config/settings.json
 Also load observer schema from: {project-root}/.kracked/runtime/SCHEMA.md
+Also write human transcript artifacts to: {project-root}/KD_output/transcripts/
+
+Language enforcement:
+- All planning, chat, explanations, summaries, transcripts, and document prose MUST use the language chosen in settings.json
+- Code, code comments, identifiers, test names, and code examples MUST stay in English unless the user explicitly requests another language
 
 After completing the response, log one observer event using:
 \`node {project-root}/.kracked/runtime/emit-event.js --source ${ideType} --agent-id main-agent --agent-name "<agent_name>" --role "Master Agent" --action typing --task ${cmd.name} --message "Workflow completed"\`
 
 If Main Agent delegates to professional agent(s), include target on the same log:
 \`node {project-root}/.kracked/runtime/emit-event.js --source ${ideType} --agent-id main-agent --agent-name "<agent_name>" --role "Master Agent" --action typing --task ${cmd.name} --target-agent-id "<role>-agent" --message "Delegating subtask"\`
+
+Also append at least one dialogue transcript entry using:
+\`node {project-root}/.kracked/runtime/emit-transcript.js --command ${cmd.name} --speaker-id main-agent --speaker-name "<agent_name>" --speaker-role "Master Agent" --message-kind summary --text "Workflow completed"\`
 `;
 }
 
@@ -230,7 +212,7 @@ If Main Agent delegates to professional agent(s), include target on the same log
  */
 function generateAdapter(targetDir, ide, context = {}) {
   const commands = personalizeCommands(getCommandFiles(), context);
-  const mainAgentName = context.mainAgentName || 'Amad';
+  const mainAgentName = context.mainAgentName || 'Main Agent';
 
   switch (ide) {
     case 'codex':
@@ -253,7 +235,7 @@ function generateAdapter(targetDir, ide, context = {}) {
   }
 }
 
-function generateCodexAdapter(targetDir, commands, mainAgentName = 'Amad') {
+function generateCodexAdapter(targetDir, commands, mainAgentName = 'Main Agent') {
   const dir = path.join(targetDir, '.codex');
   const cmdDir = path.join(dir, 'commands');
   fs.mkdirSync(dir, { recursive: true });
@@ -269,6 +251,8 @@ Main agent for this installation: ${mainAgentName}
 Read and follow:
 - System prompt: {project-root}/.kracked/prompts/system-prompt.md
 - Main agent profile: {project-root}/.kracked/config/main-agent.json
+- Agent roster: {project-root}/.kracked/config/agents.json
+- Settings: {project-root}/.kracked/config/settings.json
 
 ## Available Commands
 ${commands.map(cmd => `- \`/${cmd.name}\` â€” ${cmd.description}`).join('\n')}
@@ -277,8 +261,11 @@ ${commands.map(cmd => `- \`/${cmd.name}\` â€” ${cmd.description}`).join('\n
 When the user types any /kd-* command:
 1. Load the corresponding workflow file from {project-root}/.kracked/workflows/
 2. Load the system prompt from {project-root}/.kracked/prompts/system-prompt.md
-3. Follow all instructions exactly as written in the workflow file
-4. Update {project-root}/KD_output/status/status.md after every response
+3. Load the persistent roster from {project-root}/.kracked/config/agents.json and honor valid @Name mentions
+4. Enforce the selected project language for planning/chat/explanations from settings.json
+5. Keep code, code comments, identifiers, and code examples in English unless the user explicitly requests another language
+6. Follow all instructions exactly as written in the workflow file
+7. Update {project-root}/KD_output/status/status.md after every response
 `;
 
   fs.writeFileSync(path.join(dir, 'INSTRUCTIONS.md'), instructions, 'utf8');
@@ -316,26 +303,35 @@ function generateAntigravityAdapter(targetDir, commands) {
 
   const skillContent = `---
 name: 'kracked-skills-agent'
-description: 'KD Multi-Agent System â€” 9 specialized agents, 8 structured stages, XP leveling'
+description: 'KD Multi-Agent System â€” main agent plus 11 specialist sub-agents, structured workflow stages, transcripts, and XP leveling'
 ---
 
 # Kracked_Skills Agent (KD)
 
 Read and follow the system prompt at: {project-root}/.kracked/prompts/system-prompt.md
+Read the persistent roster at: {project-root}/.kracked/config/agents.json
+Read language settings at: {project-root}/.kracked/config/settings.json
 
 This skill provides a complete AI multi-agent development system with:
-- 9 specialized agent roles (Analyst, PM, Architect, Tech Lead, Engineer, QA, Security, DevOps, Release Manager)
-- 8 structured development stages (Discovery â†’ Release)
+- 1 main agent orchestrator plus 11 specialized sub-agent roles
+- Structured workflow stages from /kd-analyze to /kd-retrospective
 - XP leveling system (Novice â†’ Grandmaster)
 - Session memory that persists across conversations
 - Scale-adaptive workflows (SMALL/STANDARD/DEEP)
 - Shared observer event logging at {project-root}/.kracked/runtime/events.jsonl
+- Shared dialogue transcript logging at {project-root}/.kracked/runtime/transcripts.jsonl
+- Direct specialist access using valid @Name mentions from the roster
+- Planning/chat/explanations must use the selected project language from settings.json
+- Code and code comments stay in English unless the user explicitly requests another language
 
 For every completed workflow response, emit one event:
 \`node {project-root}/.kracked/runtime/emit-event.js --source antigravity --agent-id main-agent --agent-name "<agent_name>" --role "Master Agent" --action typing --task "<kd-command>"\`
 
 If delegating to specialist role, include:
 \`--target-agent-id "<role>-agent"\`
+
+Also append one transcript line:
+\`node {project-root}/.kracked/runtime/emit-transcript.js --command "<kd-command>" --speaker-id main-agent --speaker-name "<agent_name>" --speaker-role "Master Agent" --message-kind summary --text "Workflow completed"\`
 `;
 
   fs.writeFileSync(path.join(agSkillDir, 'SKILL.md'), skillContent, 'utf8');
@@ -360,7 +356,7 @@ function generateCursorAdapter(targetDir, commands) {
   return files;
 }
 
-function generateOpenCodeAdapter(targetDir, commands, mainAgentName = 'Amad') {
+function generateOpenCodeAdapter(targetDir, commands, mainAgentName = 'Main Agent') {
   const agentsDir = path.join(targetDir, '.opencode', 'agents');
   const skillsDir = path.join(targetDir, '.opencode', 'skills');
   fs.mkdirSync(agentsDir, { recursive: true });
@@ -373,6 +369,8 @@ function generateOpenCodeAdapter(targetDir, commands, mainAgentName = 'Amad') {
 
 Read and follow the system prompt at: {project-root}/.kracked/prompts/system-prompt.md
 Main agent persona: ${mainAgentName}
+Persistent roster: {project-root}/.kracked/config/agents.json
+Language settings: {project-root}/.kracked/config/settings.json
 
 ## Available Commands
 ${commands.map(cmd => `- \`/${cmd.name}\` â€” ${cmd.description}`).join('\n')}
@@ -380,8 +378,11 @@ ${commands.map(cmd => `- \`/${cmd.name}\` â€” ${cmd.description}`).join('\n
 ## How to Process Commands
 When the user types any /kd-* command:
 1. Load the corresponding workflow file from {project-root}/.kracked/workflows/
-2. Follow all instructions exactly as written
-3. Update {project-root}/KD_output/status/status.md after every response
+2. Load the roster from {project-root}/.kracked/config/agents.json and respect valid @Name mentions
+3. Use the selected project language from settings.json for planning/chat/explanations
+4. Keep code and code comments in English unless the user explicitly requests another language
+5. Follow all instructions exactly as written
+6. Update {project-root}/KD_output/status/status.md after every response
 `;
 
   fs.writeFileSync(path.join(agentsDir, 'kracked-skills.md'), agentContent, 'utf8');
@@ -390,7 +391,7 @@ When the user types any /kd-* command:
   return files;
 }
 
-function generateKiloCodeAdapter(targetDir, commands, mainAgentName = 'Amad') {
+function generateKiloCodeAdapter(targetDir, commands, mainAgentName = 'Main Agent') {
   const dir = path.join(targetDir, '.kilocode', 'workflows');
   fs.mkdirSync(dir, { recursive: true });
 
@@ -444,7 +445,7 @@ function generateClineAdapter(targetDir, commands) {
   return files;
 }
 
-function generateClaudeCodeAdapter(targetDir, commands, mainAgentName = 'Amad') {
+function generateClaudeCodeAdapter(targetDir, commands, mainAgentName = 'Main Agent') {
   const commandsDir = path.join(targetDir, '.claude', 'commands');
   fs.mkdirSync(commandsDir, { recursive: true });
 
@@ -458,6 +459,8 @@ Main agent for this installation: ${mainAgentName}
 Read and follow:
 - System prompt: {project-root}/.kracked/prompts/system-prompt.md
 - Main agent profile: {project-root}/.kracked/config/main-agent.json
+- Agent roster: {project-root}/.kracked/config/agents.json
+- Settings: {project-root}/.kracked/config/settings.json
 
 ## Available Commands
 ${commands.map((cmd) => `- \`/${cmd.name}\` - ${cmd.description}`).join('\n')}
@@ -465,8 +468,11 @@ ${commands.map((cmd) => `- \`/${cmd.name}\` - ${cmd.description}`).join('\n')}
 ## Command Handling
 When the user runs a /kd-* command:
 1. Load corresponding workflow from {project-root}/.kracked/workflows/
-2. Follow workflow instructions exactly
-3. Update {project-root}/KD_output/status/status.md after each response
+2. Load the persistent roster from {project-root}/.kracked/config/agents.json and honor valid @Name mentions
+3. Use the selected project language from settings.json for planning/chat/explanations
+4. Keep code and code comments in English unless the user explicitly requests another language
+5. Follow workflow instructions exactly
+6. Update {project-root}/KD_output/status/status.md after each response
 `;
 
   fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), claudeContent, 'utf8');

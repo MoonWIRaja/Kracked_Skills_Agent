@@ -15,17 +15,24 @@ test('antigravity adapter creates workflow files and skill directory', () => {
     assert.ok(Array.isArray(files));
     assert.ok(files.length > 0);
     assert.ok(fs.existsSync(path.join(tempDir, '.agent', 'workflows', 'kd.md')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.agent', 'workflows', 'kd-roster.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.agents', 'skills', 'kracked-skills-agent', 'SKILL.md')));
 
     const workflow = fs.readFileSync(path.join(tempDir, '.agent', 'workflows', 'kd.md'), 'utf8');
+    const rosterWorkflow = fs.readFileSync(path.join(tempDir, '.agent', 'workflows', 'kd-roster.md'), 'utf8');
     const skill = fs.readFileSync(
       path.join(tempDir, '.agents', 'skills', 'kracked-skills-agent', 'SKILL.md'),
       'utf8'
     );
     assert.match(workflow, /runtime\/SCHEMA\.md/);
     assert.match(workflow, /runtime\/emit-event\.js/);
-    assert.match(workflow, /target-agent-id/);
-    assert.match(skill, /target-agent-id/);
+    assert.match(workflow, /runtime\/emit-transcript\.js/);
+    assert.match(workflow, /config\/agents\.json/);
+    assert.match(workflow, /config\/settings\.json/);
+    assert.match(workflow, /planning, chat, explanations, summaries, transcripts, and document prose MUST use the language chosen in settings\.json/);
+    assert.match(rosterWorkflow, /KD-roster\.md/);
+    assert.match(skill, /11 specialized sub-agent roles/);
+    assert.match(skill, /transcripts\.jsonl/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -49,14 +56,18 @@ test('codex adapter creates instructions and command files', () => {
     assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'INSTRUCTIONS.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'commands', 'kd.md')));
     assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'commands', 'kd-help.md')));
+    assert.ok(fs.existsSync(path.join(tempDir, '.codex', 'commands', 'kd-roster.md')));
 
     const instructions = fs.readFileSync(path.join(tempDir, '.codex', 'INSTRUCTIONS.md'), 'utf8');
     const commandMarkdown = fs.readFileSync(path.join(tempDir, '.codex', 'commands', 'kd.md'), 'utf8');
     assert.match(instructions, /Main agent for this installation: Moon/);
-    assert.match(instructions, /Matnep/);
+    assert.match(instructions, /Agent roster: \{project-root\}\/\.kracked\/config\/agents\.json/);
+    assert.match(instructions, /Settings: \{project-root\}\/\.kracked\/config\/settings\.json/);
     assert.match(commandMarkdown, /runtime\/SCHEMA\.md/);
     assert.match(commandMarkdown, /runtime\/emit-event\.js/);
-    assert.match(commandMarkdown, /target-agent-id/);
+    assert.match(commandMarkdown, /runtime\/emit-transcript\.js/);
+    assert.match(commandMarkdown, /config\/agents\.json/);
+    assert.match(commandMarkdown, /config\/settings\.json/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -90,6 +101,8 @@ test('claude-code adapter creates CLAUDE.md and command files', () => {
 
     const claude = fs.readFileSync(path.join(tempDir, 'CLAUDE.md'), 'utf8');
     assert.match(claude, /Main agent for this installation: Moon/);
+    assert.match(claude, /Agent roster: \{project-root\}\/\.kracked\/config\/agents\.json/);
+    assert.match(claude, /Settings: \{project-root\}\/\.kracked\/config\/settings\.json/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

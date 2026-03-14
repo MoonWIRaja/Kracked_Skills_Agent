@@ -1,17 +1,32 @@
----
-name: 'kd-code-review'
-description: '[QA+SEC] Systematic code review — quality, security, test coverage'
----
+# `/kd-code-review`
 
-# /kd-code-review — Quality Phase
+## Purpose
+Semakan kualiti dan risiko sebelum validation/deploy.
 
-## Agents: [QA] Qila + [SEC] Sari
-Load: `{project-root}/.kracked/agents/qa.md` & `{project-root}/.kracked/agents/security.md`
+## Skills To Load
+- `agent-dialogue`
+- `security`
+- `testing`
+- `learning-xp`
 
-## Instructions
-1. Review all changed code systematically
-2. Check OWASP Top 10 (Sari)
-3. Verify test coverage ≥ 80% (Qila)
-4. Use checklist: `{project-root}/.kracked/checklists/code-review-checklist.md`
-5. Save to: `{project-root}/KD_output/code-review/code-review.md`
-6. +60 XP if passed without critical issues
+## Required Agents
+- main-agent
+- qa
+- security
+- architect
+
+## Required Actions
+1. Findings mesti datang dahulu dan disusun ikut severity.
+2. Sertakan review transcript antara QA, Security, dan Architect jika relevan.
+3. Gunakan `checklists/code-review-checklist.md` sebagai baseline.
+4. Tulis output ke `KD_output/code-review/code-review.md`.
+
+## Footer
+```text
+Next command: /kd-validate
+XP updated: +55
+Learning bonus: +10 / none
+Memory updated: yes
+Artifacts written: [KD_output/code-review/code-review.md, KD_output/transcripts/<timestamp>-kd-code-review.md]
+Agents consulted: [main-agent, qa, security, architect]
+```

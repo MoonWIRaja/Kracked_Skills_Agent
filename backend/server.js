@@ -21,6 +21,8 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const MAIN_AGENT_CONFIG = path.join(PROJECT_ROOT, '.kracked', 'config', 'main-agent.json');
 const AGENTS_CONFIG = path.join(PROJECT_ROOT, '.kracked', 'config', 'agents.json');
 const XP_CONFIG = path.join(PROJECT_ROOT, '.kracked', 'security', 'xp.json');
+const TRANSCRIPTS_PATH = path.join(PROJECT_ROOT, '.kracked', 'runtime', 'transcripts.jsonl');
+const STATUS_PATH = path.join(PROJECT_ROOT, 'KD_output', 'status', 'status.md');
 
 const PROFESSIONAL_ROLES = [
   { key: 'analyst', label: 'Analyst', level: 3, xp: 620 },
@@ -32,13 +34,14 @@ const PROFESSIONAL_ROLES = [
   { key: 'security', label: 'Security', level: 3, xp: 490 },
   { key: 'devops', label: 'DevOps', level: 2, xp: 280 },
   { key: 'release-manager', label: 'Release Manager', level: 2, xp: 220 },
+  { key: 'ui-ux-frontend', label: 'UI/UX Frontend', level: 3, xp: 540 },
+  { key: 'backend-api', label: 'Backend/API', level: 3, xp: 610 },
 ];
 
 const RANDOM_NAME_POOL = [
   'Denial',
   'Adam',
   'Akmal',
-  'Amad',
   'Kaizer',
   'Matnep',
   'Aizad',
@@ -61,20 +64,18 @@ const RANDOM_NAME_POOL = [
   'Syazwan',
   'Afiq',
   'Haziq',
+  'Kiroro',
+  'Ashot',
+  'Ijam',
+  'Pali',
+  'Jes',
+  'Ly',
+  'Natasha',
+  'Dakmar',
+  'irfan',
+  'nizzi',
+  'Yamin',
 ];
-
-const LEGACY_DEFAULT_IDS = new Set([
-  'amad-001',
-  'ara-001',
-  'paan-001',
-  'adi-001',
-  'teja-001',
-  'ezra-001',
-  'qila-001',
-  'sari-001',
-  'dian-001',
-  'rina-001',
-]);
 
 app.use(cors());
 app.use(express.json());
@@ -91,11 +92,41 @@ function safeReadJson(filePath) {
   }
 }
 
+function readJsonLines(filePath, maxHistory = 200) {
+  if (!fs.existsSync(filePath)) return [];
+  return fs.readFileSync(filePath, 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .slice(-maxHistory)
+    .flatMap((line) => {
+      try {
+        const parsed = JSON.parse(line);
+        return parsed && typeof parsed === 'object' ? [parsed] : [];
+      } catch {
+        return [];
+      }
+    });
+}
+
 function toSlug(value) {
   return String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+function readStatusSummary() {
+  if (!fs.existsSync(STATUS_PATH)) return { text: '', updated_at: null };
+  const stat = fs.statSync(STATUS_PATH);
+  return {
+    text: fs.readFileSync(STATUS_PATH, 'utf8'),
+    updated_at: stat.mtime.toISOString(),
+  };
+}
+
+function extractNextCommand(text) {
+  const match = String(text || '').match(/Next command:\s*(\/kd-[\w-]+)/i);
+  return match ? match[1] : null;
 }
 
 function shuffle(items) {
@@ -154,7 +185,7 @@ function loadSeedRoster() {
   const agentsConfig = safeReadJson(AGENTS_CONFIG);
   const xpConfig = safeReadJson(XP_CONFIG);
 
-  const mainName = normalizeName(mainConfig && mainConfig.name, 'Amad');
+  const mainName = normalizeName(mainConfig && mainConfig.name, 'Main Agent');
   const professionalMap =
     agentsConfig && agentsConfig.byRole && typeof agentsConfig.byRole === 'object'
       ? agentsConfig.byRole
@@ -184,6 +215,75 @@ function loadSeedRoster() {
   }
 
   return roster;
+}
+
+function loadRosterPayload() {
+  const mainConfig = safeReadJson(MAIN_AGENT_CONFIG);
+  const agentsConfig = safeReadJson(AGENTS_CONFIG);
+  const xpConfig = safeReadJson(XP_CONFIG);
+  const mainName = normalizeName(mainConfig && mainConfig.name, 'Main Agent');
+
+  const detailsByRole = {};
+  const byRole = {};
+
+  for (const role of PROFESSIONAL_ROLES) {
+    const details =
+      agentsConfig && agentsConfig.detailsByRole && agentsConfig.detailsByRole[role.key]
+        ? agentsConfig.detailsByRole[role.key]
+        : null;
+    const name = normalizeName(
+      details && details.name,
+      agentsConfig && agentsConfig.byRole ? agentsConfig.byRole[role.key] : role.label
+    );
+    byRole[role.key] = name;
+    detailsByRole[role.key] = {
+      id: `${role.key}-agent`,
+      role: role.key,
+      label: role.label,
+      name,
+      mention:
+        details && typeof details.mention === 'string' && details.mention.trim()
+          ? details.mention
+          : `@${toSlug(name)}`,
+      introduced_at: details && details.introduced_at ? details.introduced_at : null,
+    };
+  }
+
+  return {
+    main: {
+      id: 'main-agent',
+      name: mainName,
+      role: 'Master Agent',
+      mention:
+        agentsConfig && agentsConfig.main && typeof agentsConfig.main.mention === 'string'
+          ? agentsConfig.main.mention
+          : '@main-agent',
+      level: Number.isFinite(xpConfig && xpConfig.level) ? xpConfig.level : 1,
+      xp: Number.isFinite(xpConfig && xpConfig.xp) ? xpConfig.xp : 0,
+    },
+    byRole,
+    detailsByRole,
+    professional: Object.values(detailsByRole),
+  };
+}
+
+function buildProjectSummary() {
+  const status = readStatusSummary();
+  const transcripts = readJsonLines(TRANSCRIPTS_PATH, 200);
+  const latest = transcripts[transcripts.length - 1] || null;
+  const xp = safeReadJson(XP_CONFIG) || {};
+  const roster = loadRosterPayload();
+
+  return {
+    main_agent: roster.main.name,
+    current_stage: latest && latest.stage ? latest.stage : null,
+    recent_command: latest && latest.command ? latest.command : null,
+    next_command: extractNextCommand(status.text),
+    level: Number.isFinite(xp.level) ? xp.level : 1,
+    xp: Number.isFinite(xp.xp) ? xp.xp : 0,
+    status_excerpt: String(status.text || '').trim().slice(0, 320),
+    updated_at: (latest && latest.ts) || status.updated_at || new Date().toISOString(),
+  };
 }
 
 function saveDB() {
@@ -220,7 +320,7 @@ function syncSeedAgents(seedAgents) {
   const existingIds = new Set(existingRows.map((row) => String(row.id)));
   const hasOnlyLegacyIds =
     existingRows.length > 0 &&
-    Array.from(existingIds).every((id) => LEGACY_DEFAULT_IDS.has(id));
+    Array.from(existingIds).every((id) => /-001$/i.test(id));
 
   if (existingRows.length === 0 || hasOnlyLegacyIds) {
     db.run('DELETE FROM agents');
@@ -313,6 +413,31 @@ app.get('/api/agents', (req, res) => {
       xp DESC
   `);
   res.json({ agents });
+});
+
+app.get('/api/roster', (req, res) => {
+  res.json(loadRosterPayload());
+});
+
+app.get('/api/project-summary', (req, res) => {
+  res.json(buildProjectSummary());
+});
+
+app.get('/api/transcripts/recent', (req, res) => {
+  const parsed = Number.parseInt(String(req.query.limit || '20'), 10);
+  const limit = Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 200) : 20;
+  const transcripts = readJsonLines(TRANSCRIPTS_PATH, 1000).slice(-limit).reverse();
+  res.json({ transcripts });
+});
+
+app.get('/api/transcripts/:runId', (req, res) => {
+  const transcripts = readJsonLines(TRANSCRIPTS_PATH, 2000).filter(
+    (line) => String(line.run_id || '') === String(req.params.runId || '')
+  );
+  if (transcripts.length === 0) {
+    return res.status(404).json({ error: 'Transcript not found', run_id: req.params.runId });
+  }
+  res.json({ run_id: req.params.runId, transcripts });
 });
 
 // Get single agent

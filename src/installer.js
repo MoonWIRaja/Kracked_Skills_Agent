@@ -10,19 +10,6 @@ const { spawnSync } = require('node:child_process');
 const { showStep, showSuccess, showError, showWarning, showInfo, showDivider, c } = require('./display');
 const { SUPPORTED_IDES, generateAdapter, generateIDEConfig } = require('./adapters');
 
-const DEFAULT_AGENT_NAMES = {
-  main: 'Amad',
-  analyst: 'Ara',
-  pm: 'Paan',
-  architect: 'Adi',
-  'tech-lead': 'Teja',
-  engineer: 'Ezra',
-  qa: 'Qila',
-  security: 'Sari',
-  devops: 'Dian',
-  'release-manager': 'Rina',
-};
-
 const PROFESSIONAL_ROLES = [
   'analyst',
   'pm',
@@ -33,13 +20,14 @@ const PROFESSIONAL_ROLES = [
   'security',
   'devops',
   'release-manager',
+  'ui-ux-frontend',
+  'backend-api',
 ];
 
 const RANDOM_NAME_POOL = [
   'Denial',
   'Adam',
   'Akmal',
-  'Amad',
   'Kaizer',
   'Matnep',
   'Aizad',
@@ -62,6 +50,17 @@ const RANDOM_NAME_POOL = [
   'Syazwan',
   'Afiq',
   'Haziq',
+  'Kiroro',
+  'Ashot',
+  'Ijam',
+  'Pali',
+  'Jes',
+  'Ly',
+  'Natasha',
+  'Dakmar',
+  'irfan',
+  'nizzi',
+  'Yamin',
 ];
 
 const PANEL_MIN_VERSION = '0.6.5';
@@ -491,7 +490,11 @@ function shuffle(array) {
 }
 
 function pickRandomNames(mainAgentName, count) {
-  const used = new Set([mainAgentName.toLowerCase()]);
+  return pickRandomNamesWithUsed(mainAgentName, count, []);
+}
+
+function pickRandomNamesWithUsed(mainAgentName, count, extraUsed = []) {
+  const used = new Set([mainAgentName.toLowerCase(), ...extraUsed.map((value) => String(value || '').toLowerCase())]);
   const candidates = RANDOM_NAME_POOL.filter((name) => !used.has(name.toLowerCase()));
   const selected = [];
 
@@ -516,41 +519,73 @@ function pickRandomNames(mainAgentName, count) {
   return selected;
 }
 
-function buildAgentRoster(mainAgentName) {
-  const picked = pickRandomNames(mainAgentName, PROFESSIONAL_ROLES.length);
-  const byRole = {};
+function toMention(name) {
+  return `@${String(name || '')
+    .trim()
+    .replace(/\s+/g, '-')}`;
+}
 
-  PROFESSIONAL_ROLES.forEach((role, index) => {
-    byRole[role] = picked[index];
+function buildAgentRoster(mainAgentName, existingRoster = null) {
+  const existingDetails = existingRoster && isValidObject(existingRoster.detailsByRole)
+    ? existingRoster.detailsByRole
+    : {};
+  const existingByRole = existingRoster && isValidObject(existingRoster.byRole)
+    ? existingRoster.byRole
+    : {};
+  const preservedNames = {};
+
+  PROFESSIONAL_ROLES.forEach((role) => {
+    const detail = isValidObject(existingDetails[role]) ? existingDetails[role] : null;
+    const name = detail && typeof detail.name === 'string' && detail.name.trim()
+      ? detail.name.trim()
+      : typeof existingByRole[role] === 'string' && existingByRole[role].trim()
+        ? existingByRole[role].trim()
+        : '';
+    if (name) preservedNames[role] = name;
+  });
+
+  const missingRoles = PROFESSIONAL_ROLES.filter((role) => !preservedNames[role]);
+  const picked = pickRandomNamesWithUsed(mainAgentName, missingRoles.length, Object.values(preservedNames));
+  const byRole = {};
+  const detailsByRole = {};
+  const generatedAt = new Date().toISOString();
+
+  missingRoles.forEach((role, index) => {
+    preservedNames[role] = picked[index];
+  });
+
+  PROFESSIONAL_ROLES.forEach((role) => {
+    const existingDetail = isValidObject(existingDetails[role]) ? existingDetails[role] : null;
+    const name = preservedNames[role];
+    byRole[role] = name;
+      detailsByRole[role] = {
+        role,
+        name,
+        mention: existingDetail && typeof existingDetail.mention === 'string' && existingDetail.mention.trim()
+          ? existingDetail.mention.trim()
+          : toMention(name),
+        introduced_at: existingDetail && typeof existingDetail.introduced_at === 'string' && existingDetail.introduced_at.trim()
+          ? existingDetail.introduced_at.trim()
+          : generatedAt,
+      };
   });
 
   return {
     main: {
       role: 'master-agent',
       name: mainAgentName,
-      internal_persona: DEFAULT_AGENT_NAMES.main,
+      mention: toMention(mainAgentName),
+      introduced_at: generatedAt,
     },
     byRole,
-    professional: PROFESSIONAL_ROLES.map((role) => ({ role, name: byRole[role] })),
-    generated_at: new Date().toISOString(),
+    detailsByRole,
+    professional: PROFESSIONAL_ROLES.map((role) => ({ ...detailsByRole[role] })),
+    generated_at: generatedAt,
   };
 }
 
 function applyAgentRosterToTemplates(krackDir, outputDir, mainAgentName, roster, options = {}) {
   const mutateOutput = options.mutateOutput !== false;
-  const replacements = new Map([
-    [DEFAULT_AGENT_NAMES.main, mainAgentName],
-    [DEFAULT_AGENT_NAMES.analyst, roster.byRole.analyst],
-    [DEFAULT_AGENT_NAMES.pm, roster.byRole.pm],
-    [DEFAULT_AGENT_NAMES.architect, roster.byRole.architect],
-    [DEFAULT_AGENT_NAMES['tech-lead'], roster.byRole['tech-lead']],
-    [DEFAULT_AGENT_NAMES.engineer, roster.byRole.engineer],
-    [DEFAULT_AGENT_NAMES.qa, roster.byRole.qa],
-    [DEFAULT_AGENT_NAMES.security, roster.byRole.security],
-    [DEFAULT_AGENT_NAMES.devops, roster.byRole.devops],
-    [DEFAULT_AGENT_NAMES['release-manager'], roster.byRole['release-manager']],
-  ]);
-
   const markdownFiles = mutateOutput
     ? [...walkFiles(krackDir, '.md'), ...walkFiles(outputDir, '.md')]
     : [...walkFiles(krackDir, '.md')];
@@ -558,17 +593,6 @@ function applyAgentRosterToTemplates(krackDir, outputDir, mainAgentName, roster,
   markdownFiles.forEach((filePath) => {
     let content = fs.readFileSync(filePath, 'utf8');
     let updated = content;
-
-    for (const [from, to] of replacements.entries()) {
-      updated = replaceWholeWord(updated, from, to);
-    }
-
-    if (filePath.endsWith(path.join('prompts', 'system-prompt.md'))) {
-      updated = updated.replace(/name:\s*"amad"/i, `name: "${mainAgentName.toLowerCase()}"`);
-      updated = updated.replace(/persona:\s*"Amad"/, `persona: "${mainAgentName}"`);
-      updated = updated.replace(/#\s+Amad\s+[-â€“â€”]\s+Master Agent/i, `# ${mainAgentName} â€” Master Agent`);
-      updated = updated.replace(/You are \*\*Amad\*\*/i, `You are **${mainAgentName}**`);
-    }
 
     if (updated !== content) {
       fs.writeFileSync(filePath, updated, 'utf8');
@@ -582,7 +606,9 @@ function ensureRuntimeFiles(krackDir) {
 
   const schemaFile = path.join(runtimeDir, 'SCHEMA.md');
   const eventsFile = path.join(runtimeDir, 'events.jsonl');
+  const transcriptsFile = path.join(runtimeDir, 'transcripts.jsonl');
   const emitterFile = path.join(runtimeDir, 'emit-event.js');
+  const transcriptEmitterFile = path.join(runtimeDir, 'emit-transcript.js');
   const tuiFile = path.join(runtimeDir, 'pixel-tui.js');
   const webFile = path.join(runtimeDir, 'pixel-web.js');
 
@@ -605,6 +631,10 @@ Required fields:
 
   if (!fs.existsSync(eventsFile)) {
     fs.writeFileSync(eventsFile, '', 'utf8');
+  }
+
+  if (!fs.existsSync(transcriptsFile)) {
+    fs.writeFileSync(transcriptsFile, '', 'utf8');
   }
 
   if (!fs.existsSync(emitterFile)) {
@@ -630,6 +660,44 @@ function fail(msg){process.stderr.write('[KD] '+msg+'\\n');process.exit(1);}
 })().catch((err)=>fail(err&&err.message?err.message:String(err)));
 `;
     fs.writeFileSync(emitterFile, emitter, 'utf8');
+  }
+
+  if (!fs.existsSync(transcriptEmitterFile)) {
+    const transcriptEmitter = `#!/usr/bin/env node
+function parseArgs(argv){const out={};for(let i=0;i<argv.length;i++){const t=argv[i];if(!t.startsWith('--')) continue;const k=t.slice(2);const v=argv[i+1]&&!argv[i+1].startsWith('--')?argv[++i]:'true';out[k]=v;}return out;}
+function fail(msg){process.stderr.write('[KD] '+msg+'\\n');process.exit(1);}
+(async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const args=parseArgs(process.argv.slice(2));
+  for (const k of ['command','speaker-id','speaker-name','speaker-role','text']) { if(!args[k]) fail('Missing required argument --'+k); }
+  const cwdRuntime = path.join(process.cwd(), '.kracked', 'runtime');
+  const scriptDir = path.dirname(process.argv[1] || process.cwd());
+  const runtimeDir = fs.existsSync(cwdRuntime) ? cwdRuntime : scriptDir;
+  const transcriptsPath = path.join(runtimeDir, 'transcripts.jsonl');
+  const entry = {
+    run_id: args['run-id'] || 'run-' + Date.now(),
+    ts: new Date().toISOString(),
+    command: args.command,
+    stage: args.stage || args.command,
+    event_type: args['event-type'] || 'agent_message',
+    speaker_id: args['speaker-id'],
+    speaker_name: args['speaker-name'],
+    speaker_role: args['speaker-role'],
+    message_kind: args['message-kind'] || 'summary',
+    text: args.text,
+    xp_delta: Number.parseInt(args['xp-delta'] || '0', 10) || 0,
+    learning_key: args['learning-key'] || null,
+    artifact_path: args['artifact-path'] || null,
+  };
+  if (args['target-id']) entry.target_id = args['target-id'];
+  if (args['target-name']) entry.target_name = args['target-name'];
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  fs.appendFileSync(transcriptsPath, JSON.stringify(entry)+'\\n', 'utf8');
+  process.stdout.write('[KD] Transcript appended\\n');
+})().catch((err)=>fail(err&&err.message?err.message:String(err)));
+`;
+    fs.writeFileSync(transcriptEmitterFile, transcriptEmitter, 'utf8');
   }
 
   if (!fs.existsSync(tuiFile)) {
@@ -736,6 +804,7 @@ async function install(args) {
   const wasInstalled = fs.existsSync(krackDir);
 
   let existingXp = null;
+  let existingAgents = null;
   const preservedFiles = new Map();
 
   function preserveFile(filePath) {
@@ -745,6 +814,7 @@ async function install(args) {
 
   if (wasInstalled) {
     const xpPath = path.join(krackDir, 'security', 'xp.json');
+    const agentsPath = path.join(krackDir, 'config', 'agents.json');
     if (fs.existsSync(xpPath)) {
       try {
         existingXp = JSON.parse(fs.readFileSync(xpPath, 'utf8'));
@@ -752,8 +822,16 @@ async function install(args) {
         existingXp = null;
       }
     }
+    if (fs.existsSync(agentsPath)) {
+      try {
+        existingAgents = JSON.parse(fs.readFileSync(agentsPath, 'utf8'));
+      } catch {
+        existingAgents = null;
+      }
+    }
 
     preserveFile(path.join(krackDir, 'runtime', 'events.jsonl'));
+    preserveFile(path.join(krackDir, 'runtime', 'transcripts.jsonl'));
     preserveFile(path.join(krackDir, 'skills', 'memories', 'SKILL.md'));
     preserveFile(path.join(krackDir, 'security', 'knowledge.md'));
   }
@@ -843,14 +921,22 @@ async function install(args) {
   if (!projectName) projectName = path.basename(targetDir);
   showSuccess(`Project: ${projectName}`);
 
-  let mainAgentName = args.agent;
+  let mainAgentName = args.agent ? String(args.agent).trim() : '';
   if (!mainAgentName && !args.yes) {
-    mainAgentName = await prompt(`  ${c('brightGreen', '->')} Main agent name (default: ${DEFAULT_AGENT_NAMES.main}): `);
+    while (!mainAgentName) {
+      const answer = await prompt(`  ${c('brightGreen', '->')} Main agent name (required): `);
+      mainAgentName = String(answer || '').trim();
+      if (!mainAgentName) {
+        showWarning('Main agent name is required.');
+      }
+    }
   }
-  if (!mainAgentName) mainAgentName = DEFAULT_AGENT_NAMES.main;
+  if (!mainAgentName) {
+    throw new Error('Main agent name is required. Use --agent "<name>" or run interactive install.');
+  }
   showSuccess(`Main Agent: ${mainAgentName}`);
 
-  const roster = buildAgentRoster(mainAgentName);
+  const roster = buildAgentRoster(mainAgentName, existingAgents);
   showSuccess(`Professional Agents: ${roster.professional.map((a) => a.name).join(', ')}`);
 
   let installPanelNow = toBooleanFlag(args.panel);
@@ -884,6 +970,7 @@ async function install(args) {
       showSuccess('KD_output/ preserved existing files (new folders ensured)');
     } else {
       copyDirRecursive(outputSrc, outputDir);
+      createOutputStructure(outputDir);
       showSuccess('KD_output/ status, discovery, PRD, architecture, etc.');
     }
   } else {
@@ -925,7 +1012,7 @@ async function install(args) {
   if (preservedFiles.size > 0) {
     showInfo('Preserved user runtime/memory files from previous installation');
   }
-  showSuccess('Agent personas randomized and personalized');
+  showSuccess('Agent roster randomized and personalized');
 
   currentStep++;
   showStep(currentStep, totalSteps, 'Generating IDE adapter files...');
@@ -958,9 +1045,15 @@ async function install(args) {
       default: language,
       communication: language === 'MS' ? 'Bahasa Melayu' : language === 'EN' ? 'English' : language,
       document_output: language === 'MS' ? 'Bahasa Melayu' : language === 'EN' ? 'English' : language,
+      planning_and_chat: language === 'MS' ? 'Bahasa Melayu' : language === 'EN' ? 'English' : language,
+      explanation_output: language === 'MS' ? 'Bahasa Melayu' : language === 'EN' ? 'English' : language,
+      code_output: 'English unless the user explicitly requests another language',
+      code_comments: 'English unless the user explicitly requests another language',
+      code_identifiers: 'English unless the user explicitly requests another language',
     },
     ides: selectedTools,
     output_folder: '{project-root}/KD_output',
+    transcript_folder: '{project-root}/KD_output/transcripts',
     memory: {
       local_path: './.kracked/',
       global_path: '~/.kracked/global/',
@@ -975,7 +1068,6 @@ async function install(args) {
     JSON.stringify(
       {
         name: mainAgentName,
-        internal_persona: DEFAULT_AGENT_NAMES.main,
         role: 'master-agent',
         updated_at: new Date().toISOString(),
       },
@@ -1076,6 +1168,28 @@ ${selectedTools.map((t) => `  - ${t}`).join('\n')}
   console.log('');
 }
 
+async function installPixelPanelOnly(args) {
+  const targetDir = path.resolve(args.directory || process.cwd());
+  const krackDir = path.join(targetDir, '.kracked');
+  const panelPackagePath = path.join(krackDir, 'tools', 'vscode-kd-pixel-panel', 'package.json');
+
+  if (!fs.existsSync(krackDir) || !fs.existsSync(panelPackagePath)) {
+    showWarning('Pixel Panel requires KD core files. Installing Kracked Skills + Pixel Panel instead...');
+    await install({ ...args, panel: true });
+    return;
+  }
+
+  showInfo('Installing native Pixel panel...');
+  const panelResult = tryInstallNativePanel(targetDir);
+  if (panelResult.ok) {
+    showSuccess(`Native panel installed (${path.basename(panelResult.vsixPath)})`);
+  } else {
+    showWarning(`Native panel auto-install failed: ${panelResult.reason}`);
+    showInfo('Run kd-panel-install.bat or kd-panel-install.ps1 later to install manually');
+  }
+  showInfo('Observer ready: kd-panel-tui.bat / kd-panel-tui.ps1 / kd-panel-web.bat / kd-panel-web.ps1');
+}
+
 function createMinimalStructure(krackDir) {
   const dirs = [
     'agents',
@@ -1112,6 +1226,7 @@ function createOutputStructure(outputDir) {
     'code-review',
     'deployment',
     'release',
+    'transcripts',
   ];
 
   dirs.forEach((d) => fs.mkdirSync(path.join(outputDir, d), { recursive: true }));
@@ -1154,5 +1269,4 @@ Tiada halangan buat masa ini.
   fs.writeFileSync(path.join(statusDir, 'status.md'), statusContent, 'utf8');
 }
 
-module.exports = { install };
-
+module.exports = { install, installPixelPanelOnly };

@@ -1,27 +1,39 @@
-# Discovery Report: [Nama Projek]
-*Dijana oleh: [ANALYST] Ara*
-*Tarikh: [timestamp]*
+# Discovery Template
 
-## 📊 Scale Assessment
-- **Saiz Pasukan**: [Solo/2-5/6+]
-- **Jangka Masa**: [<2 minggu/2-8 minggu/>8 minggu]
-- **Tahap Risiko**: [Rendah/Sederhana/Tinggi]
-- **Integrasi**: [0-2/3-5/6+]
-- **Skala Projek**: [SMALL/STANDARD/DEEP]
+## Project Reality Scan
+- Repo type:
+- Main runtime(s):
+- Entry points:
+- Primary modules:
 
-## 🎯 Masalah Utama
-[Huraian masalah yang ingin diselesaikan]
+## Frontend Understanding
+- Screens:
+- Theme/design clues:
+- Component structure:
 
-## 👥 Stakeholder & Pengguna Sasaran
-[Senarai stakeholder dan target users]
+## Backend Understanding
+- Routes/services:
+- Data/auth/integrations:
+- Infra assumptions:
 
-## ⚠️ Penilaian Risiko
-| Risiko | Kemungkinan | Impak | Mitigasi |
-|--------|-------------|-------|----------|
-| | | | |
+## Tests and Quality
+- Existing tests:
+- Missing coverage:
+- Known risks:
 
-## 🏁 Definition of Done
-[Kriteria yang mesti dipenuhi untuk projek dianggap selesai]
+## Visuals
+### Mermaid Flow
+```mermaid
+flowchart TD
+    A["Entry"] --> B["Core flow"]
+    B --> C["Key output"]
+```
 
-## 📌 Andaian Utama
-[Senarai andaian yang dibuat semasa discovery]
+### ASCII Wireframe
+```text
++----------------------+
+| Screen / module view |
++----------------------+
+| details              |
++----------------------+
+```

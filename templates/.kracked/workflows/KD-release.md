@@ -1,17 +1,31 @@
----
-name: 'kd-release'
-description: '[RM] Create release notes, update changelog, sync knowledge'
----
+# `/kd-release`
 
-# /kd-release — Release Phase
+## Purpose
+Tutup cycle release dengan release notes, changelog summary, dan next operational handoff.
 
-## Agent: [RM] Rina
-Load: `{project-root}/.kracked/agents/release-manager.md`
+## Skills To Load
+- `agent-dialogue`
+- `learning-xp`
 
-## Instructions
-1. Write release notes (SemVer format)
-2. Update changelog
-3. Run retrospective if needed
-4. Sync knowledge to global memory
-5. Save to: `{project-root}/KD_output/release/release-notes.md`
-6. +50 XP for release completion
+## Required Agents
+- main-agent
+- release-manager
+- devops
+
+## Required Actions
+1. Ringkaskan apa yang berubah.
+2. Tulis release notes dan deployment watch items.
+3. Nyatakan sama ada next step lebih sesuai:
+   - `/kd-sprint-review`
+   - atau `/kd-retrospective`
+4. Tulis output ke `KD_output/release/release-notes.md`.
+
+## Footer
+```text
+Next command: /kd-sprint-review
+XP updated: +45
+Learning bonus: +5 / none
+Memory updated: yes
+Artifacts written: [KD_output/release/release-notes.md, KD_output/transcripts/<timestamp>-kd-release.md]
+Agents consulted: [main-agent, release-manager, devops]
+```

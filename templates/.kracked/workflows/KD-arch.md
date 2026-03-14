@@ -1,49 +1,43 @@
----
-name: 'kd-arch'
-description: '[ARCH+SEC] Architecture design — tech stack, system diagrams, API design, security review'
----
+# `/kd-arch`
 
-# /kd-arch — Architecture Phase
+## Purpose
+Hasilkan architecture roundtable yang menyatukan UI, backend, data, security, dan deployment.
 
-## Agents: [ARCH] Adi + [SEC] Sari
-Load: `{project-root}/.kracked/agents/architect.md` & `{project-root}/.kracked/agents/security.md`
+## Skills To Load
+- `agent-dialogue`
+- `backend-api`
+- `ui-ux-frontend`
+- `learning-xp`
 
-## Entry Criteria
-- `{project-root}/KD_output/PRD/prd.md` exists and approved
+## Required Agents
+- main-agent
+- architect
+- backend-api
+- ui-ux-frontend
+- security
+- devops
 
-## Instructions
+## Required Actions
+1. Baca PRD dan brainstorm.
+2. Jalankan roundtable transcript antara agents di atas.
+3. Hasilkan:
+   - architecture decisions
+   - component/data flow
+   - API contracts
+   - DB model
+   - auth/security model
+   - deployment topology
+   - Mermaid diagrams
+   - ASCII service map
+4. Gunakan `gates/architecture-gate.md` sebagai semakan minimum.
+5. Tulis output ke `KD_output/architecture/architecture.md`.
 
-### Step 1: Load Context
-Read prd.md, scale.json, status.md, brainstorm.md
-
-### Step 2: Tech Stack Selection
-Based on PRD requirements and project scale:
-1. Propose tech stack with justification for each choice
-2. Consider: frontend, backend, database, hosting, CI/CD
-3. Create ADR (Architecture Decision Record) for each major decision
-
-### Step 3: System Design
-Create:
-1. **High-level system architecture** — mermaid component diagram
-2. **Sequence diagrams** — for key user flows
-3. **ER diagram** — database schema
-4. **API design** — endpoints, methods, request/response schemas
-
-### Step 4: Security Review (Sari)
-[SEC] Sari reviews:
-1. Authentication & authorization design
-2. Data protection strategy
-3. Input validation approach
-4. Known vulnerability vectors
-
-### Step 5: Save Output
-Use template: `{project-root}/.kracked/templates/architecture.md`
-Save to: `{project-root}/KD_output/architecture/architecture.md`
-
-### Step 6: Update Status & XP
-- Update status.md → Stage: Architecture
-- +150 XP for Architecture completion
-
-### Step 7: Gate Check
-Validate gate: `{project-root}/.kracked/gates/architecture-gate.md`
-"Architecture selesai. Nak teruskan ke /kd-story untuk pecah kepada epik dan cerita?"
+## Footer
+```text
+Next command: /kd-story
+XP updated: +70
+Learning bonus: +15 / none
+Memory updated: yes
+Artifacts written: [KD_output/architecture/architecture.md, KD_output/transcripts/<timestamp>-kd-arch.md]
+Agents consulted: [main-agent, architect, backend-api, ui-ux-frontend, security, devops]
+```

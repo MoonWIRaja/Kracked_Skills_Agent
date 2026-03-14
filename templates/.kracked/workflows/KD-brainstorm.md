@@ -1,49 +1,70 @@
----
-name: 'kd-brainstorm'
-description: '[ANALYST+PM] Brainstorming session — generate multiple approaches with scoring'
----
+# `/kd-brainstorm`
 
-# /kd-brainstorm — Brainstorm Phase
+## Purpose
+Sesi discovery dan roundtable design secara hidup bersama user.
 
-## Agents: [ANALYST] Ara + [PM] Paan
-Load: `{project-root}/.kracked/agents/analyst.md` & `{project-root}/.kracked/agents/pm.md`
+## Skills To Load
+- `brainstorm-interview`
+- `agent-dialogue`
+- `ui-ux-frontend`
+- `backend-api`
+- `learning-xp`
 
-## Entry Criteria
-- `{project-root}/KD_output/discovery/discovery.md` exists and approved
+## Required Agents
+- main-agent
+- analyst
+- pm
+- ui-ux-frontend
+- backend-api
+- architect
+- security
+- devops
 
-## Instructions
+## Required Actions
+1. Mulakan scene dan perkenalkan agent yang relevan.
+2. Tanyakan soalan secara berperingkat kepada user.
+3. Setiap soalan mesti ada:
+   - siapa yang bertanya
+   - sebab soalan itu penting
+   - recommended answer
+   - pilihan custom answer
+4. Wajib cover:
+   - tujuan projek
+   - target user
+   - UI theme/style/colors/layout
+   - screens/pages
+   - backend boundary
+   - API endpoints
+   - stack
+   - database
+   - environments
+   - auth
+   - integrations
+   - deployment
+   - testing strategy
+   - risks/constraints
+5. Selepas user jawab, semua agent berbincang semula dalam transcript.
+6. Tulis keputusan muktamad yang lengkap.
+7. Sertakan:
+   - product summary
+   - agent roundtable transcript
+   - frontend direction
+   - backend/API direction
+   - DB and infra direction
+   - Mermaid workflow
+   - Mermaid architecture
+   - ASCII wireframe
+   - screen list
+   - endpoint draft
+   - data model draft
+8. Tulis output ke `KD_output/brainstorm/brainstorm.md`.
 
-### Step 1: Load Context
-- Read discovery.md for project context
-- Read scale.json for project scale
-- Read status.md for current state
-
-### Step 2: Generate Approaches
-Generate 3-5 different solution approaches. For each approach:
-1. **Name & summary** (1-2 sentences)
-2. **Value score** (1-5): How well it solves the problem
-3. **Effort score** (1-5): How much work to implement
-4. **Risk score** (1-5): How risky is this approach
-5. **Pros & Cons** (bullet points)
-
-### Step 3: Score & Rank
-Calculate total score for each: `Value × 2 - Effort - Risk`
-Rank from highest to lowest score.
-
-### Step 4: Consensus (Party Mode if Scale ≥ STANDARD)
-If scale is STANDARD or DEEP, activate Party Mode:
-- [ANALYST] Ara gives perspective on feasibility
-- [PM] Paan gives perspective on user value
-- [ARCH] Adi gives perspective on technical complexity (if relevant)
-- Each agent provides confidence score (HIGH/MEDIUM/LOW)
-- Consensus reached by majority
-
-### Step 5: Generate Output
-Save to: `{project-root}/KD_output/brainstorm/brainstorm.md`
-Include all approaches, scores, and selected approach with justification.
-
-### Step 6: Update Status
-Update status.md with brainstorm results and next step: Requirements phase.
-
-### Step 7: Ask User
-"Brainstorm selesai. Pendekatan [X] dipilih. Nak teruskan ke /kd-prd?"
+## Footer
+```text
+Next command: /kd-prd
+XP updated: +75
+Learning bonus: +15 / none
+Memory updated: yes
+Artifacts written: [KD_output/brainstorm/brainstorm.md, KD_output/transcripts/<timestamp>-kd-brainstorm.md]
+Agents consulted: [main-agent, analyst, pm, ui-ux-frontend, backend-api, architect, security, devops]
+```

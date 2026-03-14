@@ -1,16 +1,35 @@
----
-name: 'kd-deploy'
-description: '[DEVOPS] Generate deployment plan with CI/CD, preflight check, rollback plan'
----
+# `/kd-deploy`
 
-# /kd-deploy — Deployment Phase
+## Purpose
+Sediakan deployment plan dengan preflight, rollback, dan operational checks.
 
-## Agent: [DEVOPS] Dian
-Load: `{project-root}/.kracked/agents/devops.md`
+## Skills To Load
+- `devops`
+- `security`
+- `agent-dialogue`
+- `learning-xp`
 
-## Instructions
-1. WAJIB: Run preflight check (read `{project-root}/.kracked/prompts/preflight-check.md`)
-2. Create deployment plan with rollback
-3. Setup CI/CD pipeline config
-4. Save to: `{project-root}/KD_output/deployment/deployment-plan.md`
-5. +100 XP for successful deployment
+## Required Agents
+- main-agent
+- devops
+- security
+
+## Required Actions
+1. Gunakan `checklists/preflight-check.md`.
+2. Nyatakan:
+   - target environment
+   - release gating
+   - rollback plan
+   - monitoring
+   - operational risks
+3. Tulis output ke `KD_output/deployment/deployment-plan.md`.
+
+## Footer
+```text
+Next command: /kd-release
+XP updated: +60
+Learning bonus: +10 / none
+Memory updated: yes
+Artifacts written: [KD_output/deployment/deployment-plan.md, KD_output/transcripts/<timestamp>-kd-deploy.md]
+Agents consulted: [main-agent, devops, security]
+```

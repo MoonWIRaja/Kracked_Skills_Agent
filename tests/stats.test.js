@@ -12,7 +12,7 @@ test('showStats reads xp file without throwing', async () => {
   fs.mkdirSync(xpDir, { recursive: true });
 
   const xp = {
-    agent: 'Amad',
+    agent: 'MainAgent',
     level: 1,
     xp: 0,
     stats: {

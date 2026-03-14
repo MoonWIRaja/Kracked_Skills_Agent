@@ -1,13 +1,30 @@
----
-name: 'kd-test'
-description: '[QA] Generate test suite for current code'
----
-# /kd-test
-## Agent: [QA] Qila
-Load: `{project-root}/.kracked/agents/qa.md`
-Load skill: `{project-root}/.kracked/skills/testing/SKILL.md`
-## Instructions
-1. Analyze code under test
-2. Generate unit, integration, and e2e tests
-3. Aim for ≥80% coverage
-4. Follow TDD patterns from testing skill
+# `/kd-test`
+
+## Purpose
+Semak strategi ujian, hasil test semasa, dan coverage gaps.
+
+## Skills To Load
+- `testing`
+- `agent-dialogue`
+- `learning-xp`
+
+## Required Agents
+- main-agent
+- qa
+- engineer
+
+## Required Actions
+1. Ringkaskan test strategy.
+2. Jika tests boleh dikenal pasti, terangkan kategori dan gaps.
+3. Beri dialog pendek antara QA dan engineer.
+4. Tulis output ke `KD_output/testing/test-report.md`.
+
+## Footer
+```text
+Next command: /kd-code-review
+XP updated: +45
+Learning bonus: +5 / none
+Memory updated: yes
+Artifacts written: [KD_output/testing/test-report.md, KD_output/transcripts/<timestamp>-kd-test.md]
+Agents consulted: [main-agent, qa, engineer]
+```

@@ -1,41 +1,26 @@
----
-name: 'kd-help'
-description: 'Smart guidance — analyzes current state and tells you what to do next'
----
+# `/kd-help`
 
-# /kd-help — Smart Guidance
+## Purpose
+Cadangkan langkah seterusnya berdasarkan status projek, artifacts yang wujud, dan flow rasmi KD.
 
-## Instructions
+## Required Actions
+1. Semak:
+   - `KD_output/status/status.md`
+   - `KD_output/discovery/discovery.md`
+   - `KD_output/brainstorm/brainstorm.md`
+   - `KD_output/PRD/prd.md`
+   - `KD_output/architecture/architecture.md`
+2. Tentukan stage terakhir yang lengkap.
+3. Cadangkan `Next command` paling logik.
+4. Jika tiada artifacts utama, cadangkan `/kd-analyze`.
+5. Jika user mahu bercakap terus dengan specialist, ingatkan tentang `/kd-roster` dan `@Name`.
 
-### Step 1: Load Context
-1. Read `{project-root}/KD_output/status/status.md`
-2. Read `{project-root}/.kracked/config/scale.json`
-3. Read `{project-root}/.kracked/security/xp.json`
-
-### Step 2: Analyze State
-Determine:
-- Current stage in the 8-stage workflow
-- What has been completed
-- What is blocking progress
-- What should be done next
-
-### Step 3: Provide Guidance
-Based on current state:
-1. Tell user EXACTLY what to do next
-2. Suggest the appropriate command
-3. Explain WHY this is the next step
-4. If user included a question, answer it in context
-
-### Stage-Based Guidance
-- **No project**: Suggest `/kd-new` or `/kd-analyze`
-- **Discovery done**: Suggest `/kd-brainstorm`
-- **Brainstorm done**: Suggest `/kd-prd`
-- **PRD done**: Suggest `/kd-arch`
-- **Architecture done**: Suggest `/kd-story`
-- **Stories created**: Suggest `/kd-sprint-planning` then `/kd-dev-story`
-- **Implementation done**: Suggest `/kd-code-review`
-- **Quality pass**: Suggest `/kd-deploy`
-- **Deployed**: Suggest `/kd-release`
-
-### Step 4: Update Status
-Note that help was requested in status.md
+## Footer
+```text
+Next command: /kd-analyze
+XP updated: +5
+Learning bonus: none
+Memory updated: no
+Artifacts written: [KD_output/status/status.md]
+Agents consulted: [main-agent]
+```

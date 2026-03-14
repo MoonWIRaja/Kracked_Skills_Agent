@@ -1,74 +1,82 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { PixelEngine } from '@/lib/pixel/Engine';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { PixelEngine } from "@/lib/pixel/Engine";
 
 export interface ObserverAgent {
   id: string;
   name: string;
   role: string;
+  mention?: string;
   color: string;
   isMain?: boolean;
+  level?: number;
+  xp?: number;
+}
+
+export interface ObserverTranscript {
+  run_id?: string;
+  ts?: string;
+  command?: string;
+  stage?: string;
+  speaker_id?: string;
+  speaker_name?: string;
+  speaker_role?: string;
+  message_kind?: string;
+  text?: string;
+  xp_delta?: number;
+}
+
+export interface ProjectSummary {
+  main_agent: string;
+  current_stage: string | null;
+  recent_command: string | null;
+  next_command: string | null;
+  level: number;
+  xp: number;
+  status_excerpt: string;
+  updated_at: string;
 }
 
 interface PixelObserverProps {
   agents: ObserverAgent[];
+  transcripts: ObserverTranscript[];
+  summary: ProjectSummary;
 }
 
 interface LogEntry {
   timestamp: string;
-  agentId: string;
   agentName: string;
+  command: string;
+  messageKind: string;
   message: string;
-}
-
-interface TranscriptEvent {
-  t: number;
-  a: string;
-  n: string;
-  m: string;
 }
 
 function toRoleKey(role: string): string {
   return role
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
-function roleMessage(agent: ObserverAgent): string {
-  const key = toRoleKey(agent.role);
-  if (key.includes('master')) return `${agent.name} coordinating all agents now.`;
-  if (key.includes('analyst')) return `${agent.name} completed discovery scan and risk matrix.`;
-  if (key.includes('product')) return `${agent.name} updated scope and acceptance criteria.`;
-  if (key.includes('architect')) return `${agent.name} finalized service boundaries and API contracts.`;
-  if (key.includes('tech-lead')) return `${agent.name} split epic into sprint-ready user stories.`;
-  if (key.includes('engineer')) return `${agent.name} pushed TDD implementation and green tests.`;
-  if (key === 'qa' || key.includes('quality')) return `${agent.name} verified regression pack and edge cases.`;
-  if (key.includes('security')) return `${agent.name} flagged critical checks in validation block.`;
-  if (key.includes('devops')) return `${agent.name} prepared CI pipeline and rollback plan.`;
-  if (key.includes('release')) return `${agent.name} drafted release notes and changelog entries.`;
-  return `${agent.name} completed assigned workflow successfully.`;
-}
-
-function buildScenario(agents: ObserverAgent[]): TranscriptEvent[] {
-  const selected = agents.slice(0, 6);
-  return selected.map((agent, index) => ({
-    t: 900 + index * 1700,
-    a: agent.id,
-    n: agent.name,
-    m: roleMessage(agent),
-  }));
-}
-
-export default function PixelObserver({ agents }: PixelObserverProps) {
+export default function PixelObserver({ agents, transcripts, summary }: PixelObserverProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<PixelEngine | null>(null);
-  const timersRef = useRef<number[]>([]);
+  const lastSpeechKeyRef = useRef<string>("");
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [isPlaying, setIsPlaying] = useState(false);
 
-  const scenario = useMemo(() => buildScenario(agents), [agents]);
+  const latestTranscript = transcripts[0] || null;
+  const orderedLogs = useMemo(
+    () =>
+      transcripts.slice(0, 12).map((line, index) => ({
+        timestamp: line.ts ? new Date(line.ts).toLocaleTimeString() : `line-${index}`,
+        agentName: line.speaker_name || line.speaker_id || "Unknown",
+        command: line.command || "-",
+        messageKind: line.message_kind || "message",
+        message: line.text || "",
+      })),
+    [transcripts]
+  );
 
   useEffect(() => {
     if (!canvasRef.current || agents.length === 0) return;
@@ -80,62 +88,56 @@ export default function PixelObserver({ agents }: PixelObserverProps) {
       engine.addAgent(agent.id, agent.name, agent.role, agent.color);
     });
 
-    const mainAgent = agents.find((agent) => agent.isMain || toRoleKey(agent.role).includes('master'));
+    const mainAgent = agents.find((agent) => agent.isMain || toRoleKey(agent.role).includes("master"));
     if (mainAgent) {
-      engine.setSpeech(mainAgent.id, `${mainAgent.name}: KD network online.`);
+      engine.setSpeech(mainAgent.id, `${mainAgent.name}: observer online.`);
     }
 
     engine.start();
     return () => {
-      timersRef.current.forEach((id) => window.clearTimeout(id));
-      timersRef.current = [];
       engine.stop();
     };
   }, [agents]);
 
-  const playTranscript = () => {
-    if (isPlaying || scenario.length === 0) return;
-    setIsPlaying(true);
-    setLogs([]);
+  useEffect(() => {
+    setLogs(orderedLogs);
+  }, [orderedLogs]);
 
-    timersRef.current.forEach((id) => window.clearTimeout(id));
-    timersRef.current = [];
+  useEffect(() => {
+    if (!engineRef.current || !latestTranscript) return;
+    const speechKey = [
+      latestTranscript.ts,
+      latestTranscript.speaker_id,
+      latestTranscript.command,
+      latestTranscript.text,
+    ].join("|");
 
-    scenario.forEach((event) => {
-      const timeoutId = window.setTimeout(() => {
-        if (!engineRef.current) return;
-        engineRef.current.setSpeech(event.a, event.m);
-        setLogs((prev) =>
-          [
-            {
-              timestamp: new Date().toLocaleTimeString(),
-              agentId: event.a,
-              agentName: event.n,
-              message: event.m,
-            },
-            ...prev,
-          ].slice(0, 12)
-        );
-      }, event.t);
+    if (!speechKey || speechKey === lastSpeechKeyRef.current) return;
+    lastSpeechKeyRef.current = speechKey;
 
-      timersRef.current.push(timeoutId);
-    });
-
-    const endingTimeoutId = window.setTimeout(() => setIsPlaying(false), Math.max(...scenario.map((s) => s.t)) + 1600);
-    timersRef.current.push(endingTimeoutId);
-  };
+    const speakerId = latestTranscript.speaker_id || "main-agent";
+    const speakerName = latestTranscript.speaker_name || "Agent";
+    const text = latestTranscript.text || "";
+    engineRef.current.setSpeech(speakerId, `${speakerName}: ${text}`);
+  }, [latestTranscript]);
 
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between rounded-xl border border-[#2d4a36] bg-[#0b1b12]/90 px-3 py-2">
-        <h3 className="font-arcade text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">KD RPG World</h3>
-        <button
-          onClick={playTranscript}
-          disabled={isPlaying || scenario.length === 0}
-          className="font-ui rounded-md border border-[#2f6d3a] bg-[#153321] px-3 py-1.5 text-xs font-semibold text-[#c8ffd1] transition hover:bg-[#1d452c] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isPlaying ? 'Running...' : 'Run Scenario'}
-        </button>
+        <div>
+          <h3 className="font-arcade text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">KD RPG World</h3>
+          <p className="font-ui mt-1 text-xs text-[#85af8e]">
+            {summary.recent_command ? `Recent /${summary.recent_command}` : "No recent command"}
+            <span className="mx-2 text-[#3d6a49]">|</span>
+            {summary.next_command ? `Next ${summary.next_command}` : "Next not set"}
+          </p>
+        </div>
+        <div className="rounded-md border border-[#2f6d3a] bg-[#153321] px-3 py-1.5 text-right">
+          <p className="font-ui text-[11px] uppercase tracking-[0.18em] text-[#9ee49f]">Main Agent XP</p>
+          <p className="font-ui text-sm font-semibold text-[#d4ffdc]">
+            LV {summary.level} · {summary.xp} XP
+          </p>
+        </div>
       </div>
 
       <div className="relative mx-auto aspect-video w-full overflow-hidden rounded-xl border border-[#2d4a36] bg-[#060f0a]">
@@ -143,20 +145,44 @@ export default function PixelObserver({ agents }: PixelObserverProps) {
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0)_0,rgba(22,77,38,0.11)_48%,rgba(0,0,0,0)_100%)] bg-[length:100%_4px]" />
       </div>
 
-      <div className="flex min-h-[190px] flex-1 flex-col rounded-xl border border-[#2d4a36] bg-[#07130c]/95 p-3">
-        <h4 className="font-arcade mb-2 text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">Observer Logs</h4>
-        <div className="custom-scrollbar flex-1 space-y-1 overflow-y-auto pr-2">
-          {logs.length === 0 ? (
-            <div className="font-ui mt-8 text-center text-xs text-[#5f8d66]">Guild, Dark Ops, and Wild zones are live. Click Run Scenario.</div>
-          ) : (
-            logs.map((log, index) => (
-              <div key={`${log.timestamp}-${index}`} className="font-ui flex gap-2 text-xs text-[#b6d3b9]">
-                <span className="min-w-[64px] text-[#6ca474]">[{log.timestamp}]</span>
-                <span className="min-w-[58px] font-semibold text-[#93f2a2]">[{log.agentName}]</span>
-                <span className="text-[#d1e8d2]">{log.message}</span>
-              </div>
-            ))
-          )}
+      <div className="grid flex-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="flex min-h-[220px] flex-col rounded-xl border border-[#2d4a36] bg-[#07130c]/95 p-3">
+          <h4 className="font-arcade mb-2 text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">Live Transcript</h4>
+          <div className="custom-scrollbar flex-1 space-y-1 overflow-y-auto pr-2">
+            {logs.length === 0 ? (
+              <div className="font-ui mt-8 text-center text-xs text-[#5f8d66]">Waiting for transcript lines from `.kracked/runtime/transcripts.jsonl`.</div>
+            ) : (
+              logs.map((log, index) => (
+                <div key={`${log.timestamp}-${index}`} className="rounded-md border border-[#183126] bg-[#0b1710] px-3 py-2">
+                  <div className="font-ui flex flex-wrap items-center gap-2 text-[11px] text-[#7ca986]">
+                    <span>[{log.timestamp}]</span>
+                    <span className="font-semibold text-[#93f2a2]">{log.agentName}</span>
+                    <span className="rounded bg-[#163122] px-1.5 py-0.5 text-[#d3ffe1]">/{log.command}</span>
+                    <span className="text-[#9ccba6]">{log.messageKind}</span>
+                  </div>
+                  <p className="font-ui mt-2 text-sm text-[#d1e8d2]">{log.message}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-[220px] flex-col rounded-xl border border-[#2d4a36] bg-[#07130c]/95 p-3">
+          <h4 className="font-arcade mb-2 text-[10px] uppercase tracking-[0.2em] text-[#9ee49f]">Project State</h4>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-[#21412c] bg-[#0a1a11] px-3 py-2">
+              <p className="font-ui text-[11px] uppercase tracking-[0.18em] text-[#88b192]">Current Stage</p>
+              <p className="font-ui mt-1 text-sm font-semibold text-[#e2ffe7]">{summary.current_stage ?? "Not set"}</p>
+            </div>
+            <div className="rounded-lg border border-[#21412c] bg-[#0a1a11] px-3 py-2">
+              <p className="font-ui text-[11px] uppercase tracking-[0.18em] text-[#88b192]">Next Command</p>
+              <p className="font-ui mt-1 text-sm font-semibold text-[#d0ffd9]">{summary.next_command ?? "Not set"}</p>
+            </div>
+            <div className="rounded-lg border border-[#21412c] bg-[#0a1a11] px-3 py-2">
+              <p className="font-ui text-[11px] uppercase tracking-[0.18em] text-[#88b192]">Status Excerpt</p>
+              <p className="font-ui mt-1 text-sm leading-6 text-[#c0dac6]">{summary.status_excerpt || "No status summary available yet."}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

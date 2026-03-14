@@ -1,13 +1,34 @@
----
-name: 'kd-sprint-planning'
-description: 'Initialize sprint tracking — select stories, set goals'
----
-# /kd-sprint-planning
-## Agent: [TL] Teja
-Load: `{project-root}/.kracked/agents/tech-lead.md`
-## Instructions
-1. Read available stories from `{project-root}/KD_output/epics-and-stories/`
-2. Help user select stories for this sprint
-3. Set sprint goal and duration
-4. Update status.md with sprint info
-5. +40 XP for sprint planning
+# `/kd-sprint-planning`
+
+## Purpose
+Pilih stories untuk sprint semasa dan susun execution order.
+
+## Skills To Load
+- `agent-dialogue`
+- `learning-xp`
+
+## Required Agents
+- main-agent
+- pm
+- tech-lead
+- engineer
+
+## Required Actions
+1. Baca story map.
+2. Pilih story untuk sprint.
+3. Tetapkan:
+   - sprint goal
+   - priorities
+   - dependencies
+   - suggested ownership
+4. Tulis output ke `KD_output/sprint-planning/sprint-plan.md`.
+
+## Footer
+```text
+Next command: /kd-dev-story
+XP updated: +40
+Learning bonus: +5 / none
+Memory updated: yes
+Artifacts written: [KD_output/sprint-planning/sprint-plan.md, KD_output/transcripts/<timestamp>-kd-sprint-planning.md]
+Agents consulted: [main-agent, pm, tech-lead, engineer]
+```

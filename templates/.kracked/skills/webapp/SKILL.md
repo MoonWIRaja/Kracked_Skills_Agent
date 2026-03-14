@@ -1,36 +1,16 @@
 ---
 skill: webapp
-version: 1.0.0
-language: [EN, MS]
-triggers: ["react", "vue", "angular", "svelte", "next", "web app", "frontend"]
-agents: ["engineer", "architect"]
-confidence_default: HIGH
-xp_reward: 30
-preflight_required: false
+version: 2.0.0
+agents: ["ui-ux-frontend", "engineer", "architect"]
 ---
 
-# Web Application Patterns
+# Webapp Skill
 
-## React / Next.js Patterns
-- Functional components with hooks
-- Server components (Next.js 14+)
-- State management: Zustand / Jotai for simple, Redux for complex
-- File-based routing (App Router)
+## Goals
+- tentukan theme, layout, responsive behavior, accessibility, component boundaries
 
-## Vue Patterns
-- Composition API (Vue 3+)
-- Pinia for state management
-- Script setup syntax
-
-## General Best Practices
-- Component-driven architecture
-- Responsive design first
-- Accessibility (WCAG 2.1 AA)
-- Performance: lazy loading, code splitting
-- SEO: meta tags, semantic HTML
-
-## Anti-Patterns
-- ❌ Prop drilling beyond 2 levels
-- ❌ Business logic in components
-- ❌ Inline styles for reusable elements
-- ❌ Missing error boundaries
+## Minimum Output
+- screen list
+- layout notes
+- component groups
+- accessibility considerations

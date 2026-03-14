@@ -1,15 +1,25 @@
----
-name: 'kd-security-audit'
-description: '[SEC] Full security audit with OWASP Top 10 and XP rewards'
----
-# /kd-security-audit
-## Agent: [SEC] Sari
-Load: `{project-root}/.kracked/agents/security.md`
-Load skill: `{project-root}/.kracked/skills/security/SKILL.md`
-## Instructions
-1. OWASP Top 10 checklist
-2. Dependency vulnerability scan
-3. Authentication & authorization review
-4. Input validation check
-5. Rate each issue: CRITICAL/HIGH/MEDIUM/LOW
-6. XP rewards per fix (see agent definition)
+# `/kd-security-audit`
+
+## Purpose
+Audit keselamatan projek atau feature semasa.
+
+## Required Agents
+- main-agent
+- security
+- architect
+- qa
+
+## Required Actions
+1. Fokus pada OWASP, auth, validation, dependency risk, dan secrets handling.
+2. Susun findings ikut severity.
+3. Tunjukkan remediation yang praktikal.
+
+## Footer
+```text
+Next command: /kd-code-review
+XP updated: +50
+Learning bonus: +10 / none
+Memory updated: yes
+Artifacts written: [KD_output/transcripts/<timestamp>-kd-security-audit.md]
+Agents consulted: [main-agent, security, architect, qa]
+```

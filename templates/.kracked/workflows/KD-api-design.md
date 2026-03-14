@@ -1,14 +1,25 @@
----
-name: 'kd-api-design'
-description: '[ARCH] Design robust REST/GraphQL endpoints'
----
-# /kd-api-design
-## Agent: [ARCH] Adi
-Load: `{project-root}/.kracked/agents/architect.md`
-Load skill: `{project-root}/.kracked/skills/api-design/SKILL.md`
-## Instructions
-1. Define endpoints (method, path, request/response)
-2. Authentication & authorization strategy
-3. Error handling patterns
-4. Rate limiting & pagination
-5. Generate OpenAPI/Swagger spec if appropriate
+# `/kd-api-design`
+
+## Purpose
+Reka endpoint dan contract API yang konsisten dengan architecture semasa.
+
+## Required Agents
+- main-agent
+- backend-api
+- architect
+- security
+
+## Required Actions
+1. Hasilkan endpoint draft.
+2. Nyatakan auth, validation, error shape, dan service ownership.
+3. Sertakan contoh request/response jika relevan.
+
+## Footer
+```text
+Next command: /kd-arch
+XP updated: +35
+Learning bonus: +5 / none
+Memory updated: yes
+Artifacts written: [KD_output/transcripts/<timestamp>-kd-api-design.md]
+Agents consulted: [main-agent, backend-api, architect, security]
+```

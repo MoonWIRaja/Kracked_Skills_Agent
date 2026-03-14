@@ -1,10 +1,25 @@
----
-name: 'kd-sprint-review'
-description: 'Review current sprint progress'
----
-# /kd-sprint-review
-## Instructions
-1. Read status.md for sprint progress
-2. List completed vs remaining stories
-3. Calculate velocity
-4. Suggest adjustments if behind schedule
+# `/kd-sprint-review`
+
+## Purpose
+Review hasil sprint dan rumuskan apa yang sudah siap.
+
+## Required Agents
+- main-agent
+- pm
+- tech-lead
+- qa
+
+## Required Actions
+1. Ringkaskan deliverables sprint.
+2. Nyatakan apa yang siap dan apa yang tertinggal.
+3. Tunjukkan feedback antara PM, TL, dan QA.
+
+## Footer
+```text
+Next command: /kd-retrospective
+XP updated: +30
+Learning bonus: +5 / none
+Memory updated: yes
+Artifacts written: [KD_output/transcripts/<timestamp>-kd-sprint-review.md]
+Agents consulted: [main-agent, pm, tech-lead, qa]
+```

@@ -1,24 +1,38 @@
----
-name: 'kd-story'
-description: '[TL] Break epic into user stories with acceptance criteria'
----
+# `/kd-story`
 
-# /kd-story — Story Decomposition
+## Purpose
+Pecahkan architecture kepada epic dan stories yang jelas, kecil, dan boleh dilaksanakan.
 
-## Agent: [TL] Teja
-Load: `{project-root}/.kracked/agents/tech-lead.md`
+## Skills To Load
+- `agent-dialogue`
+- `learning-xp`
 
-## Entry Criteria
-- `{project-root}/KD_output/architecture/architecture.md` exists
+## Required Agents
+- main-agent
+- tech-lead
+- pm
+- architect
 
-## Instructions
-1. Read architecture.md and PRD to understand system scope
-2. Identify major Epics (high-level features)
-3. Break each Epic into User Stories (implementable in 1-2 days)
-4. For each story, write:
-   - Title and description
-   - Acceptance criteria (testable)
-   - Dependencies
-   - Estimated effort (S/M/L)
-5. Save to: `{project-root}/KD_output/epics-and-stories/`
-6. Update status.md + award XP
+## Required Actions
+1. Baca architecture output.
+2. Pecahkan kepada:
+   - epics
+   - frontend stories
+   - backend stories
+   - full-stack stories jika perlu
+3. Setiap story perlu ada:
+   - objective
+   - acceptance criteria
+   - dependency
+   - rough priority
+4. Tulis output ke `KD_output/epics-and-stories/story-map.md`.
+
+## Footer
+```text
+Next command: /kd-sprint-planning
+XP updated: +55
+Learning bonus: +10 / none
+Memory updated: yes
+Artifacts written: [KD_output/epics-and-stories/story-map.md, KD_output/transcripts/<timestamp>-kd-story.md]
+Agents consulted: [main-agent, tech-lead, pm, architect]
+```

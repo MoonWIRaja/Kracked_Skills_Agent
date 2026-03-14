@@ -1,16 +1,36 @@
----
-name: 'kd-dev-story'
-description: '[ENG] Implement a user story using TDD approach'
----
+# `/kd-dev-story`
 
-# /kd-dev-story — Story Implementation (TDD)
+## Purpose
+Laksanakan satu story dengan pendekatan TDD dan transcript multi-agent.
 
-## Agent: [ENG] Ezra
-Load: `{project-root}/.kracked/agents/engineer.md`
+## Skills To Load
+- `agent-dialogue`
+- `testing`
+- `learning-xp`
 
-## Instructions
-1. Load the specified story file from `{project-root}/KD_output/epics-and-stories/`
-2. Read acceptance criteria
-3. Follow TDD cycle: RED → GREEN → REFACTOR
-4. Update status.md after completion
-5. +50 XP per story implemented
+## Required Agents
+- main-agent
+- engineer
+- tech-lead
+- qa
+
+## Required Actions
+1. Kenal pasti story yang hendak dibuat.
+2. Tunjukkan dialog pendek antara main agent, engineer, tech lead, dan QA.
+3. Terangkan:
+   - implementation plan
+   - test-first approach
+   - affected files
+   - edge cases
+4. Jika code ditulis, nyatakan hasil ringkas dan apa yang berubah.
+5. Tulis transcript artifact walaupun tiada code change.
+
+## Footer
+```text
+Next command: /kd-test
+XP updated: +80
+Learning bonus: +10 / none
+Memory updated: yes
+Artifacts written: [KD_output/transcripts/<timestamp>-kd-dev-story.md]
+Agents consulted: [main-agent, engineer, tech-lead, qa]
+```

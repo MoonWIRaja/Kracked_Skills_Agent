@@ -1,12 +1,24 @@
----
-name: 'kd-db-schema'
-description: '[ARCH] Generate and optimize database schema'
----
-# /kd-db-schema
-## Agent: [ARCH] Adi
-Load skill: `{project-root}/.kracked/skills/database/SKILL.md`
-## Instructions
-1. Design ER diagram based on PRD requirements
-2. Define tables, columns, relationships, indexes
-3. Consider normalization and performance
-4. Generate migration scripts if applicable
+# `/kd-db-schema`
+
+## Purpose
+Reka schema database, relationship, migration approach, dan environment strategy.
+
+## Required Agents
+- main-agent
+- backend-api
+- architect
+
+## Required Actions
+1. Hasilkan entity list dan relationship summary.
+2. Nyatakan indexing, migration, dan environment considerations.
+3. Jelaskan trade-offs jika relational vs document model dipertimbangkan.
+
+## Footer
+```text
+Next command: /kd-arch
+XP updated: +35
+Learning bonus: +5 / none
+Memory updated: yes
+Artifacts written: [KD_output/transcripts/<timestamp>-kd-db-schema.md]
+Agents consulted: [main-agent, backend-api, architect]
+```
